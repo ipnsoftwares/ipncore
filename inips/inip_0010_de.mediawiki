@@ -50,7 +50,7 @@ ch = SHA256(SHA256(pk | ca))
 </pre>
 
 
-Als nächstes Extrahieren wir uns die letzetn 2 Bytes des Hashes und fügen die Bytes als Checksume (ch) dem Öffentlichen Schlüssel (pk) sowie dem Krpyptographischen verfahren (ca) hinzu.
+Als nächstes Extrahieren wir die letzetn 2 Bytes des Hashes und fügen die Bytes als Checksume (ch) dem Öffentlichen Schlüssel (pk) sowie dem Krpyptographischen verfahren (ca) hinzu.
 
 <pre style="white-space: pre;">
 adr = pk | ca | ch
