@@ -27,10 +27,9 @@ Dank Bitcoin und anderen Kryptowährungen haben wir die Erfahrung gemacht das Ba
 
 
 === Specification: Address Types ===
-
-- Einfache Adresse (SIA)
-- Vektor Adresse (VKA)
-- Bitcoin Shnorr Adressen (BSA)
+* Einfache Adresse (SIA)
+* Vektor Adresse (VKA)
+* Bitcoin Shnorr Adressen (BSA)
 
 
 === Einfache Adresse (SIA) ===
