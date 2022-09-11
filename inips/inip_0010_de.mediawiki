@@ -77,8 +77,9 @@ ipnbokk5ndlgypwtw5s6iq5tur7d45wc5l2akbqeycnyefr2ruq2bjeqcna
 
 === Vektor Adresse (VKA) ===
 
-Bei einer Vektor Adresse (VKA) handelt es sich um einen JSON Datensatz, dieser Datensatz wird mittels CBOR in Bytes umgewandelt welche am ende mittels Base32 Kodiert werden.
+Bei einer Vektor Adresse (VKA) handelt es sich um einen JSON Datensatz, dieser Datensatz wird mittels CBOR in Bytes umgewandelt welche am ende mittels Base32 Kodiert werden. Verktor Adressen (VKA) erlauben Komplexe Adressformen und mehrschichtige Sicherheitssysteme. Vektor Adressen können unter umständen als Live Smart Contracts bezeichnet werden.
 
+* Eine Vektor Adresse hat keinen festen aufbau, damit sind Vektor Adressen Extrem flexsibel, dürfen allerdings die größe von 512 Byte nicht überschreiten.
+* Um die Daten innerhalb der Kodierten Adresse zu übermitteln verwenden wir CBOR2.
 
-
-=== Bitcoin Schnorr Adresse (BSA) ===
+Um eine Vektor Adresse (VKA) zu erstellen, beginnen wir als erstes damit dass wir uns einen zufälligen Privaten Schlüssel erstellen, aus diesem Privaten Schlüssel leiten wir einen Öffentlichen Schlüssel ab. Nachdem wir den Öffentlichen Schlüssel abgeleitet haben, erstellen wir nun den Vektor und beschreiben diesen mit dem Öffentlichen Schlüssel.
