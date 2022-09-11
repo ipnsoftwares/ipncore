@@ -40,9 +40,7 @@ Eine Einfache Adresse besteht aus 3 Wesentlichen Angaben:
 
 Um eine einfache Adresse (SIA) zu erstellen wird ein Hash aus dem Öffentlichen Schlüssle (pk) sowie dem Verwendeten Kryptographischen verfahren (ca) erstellt, diesen Hash verwenden wird als Checksume (ch).
 
-```
-ch = SHA256(SHA256(pk | ca))
-```
+'ch = SHA256(SHA256(pk | ca))'
 
 Als nächstes Extrahieren wir uns die letzetn 2 Bytes des Hashes und fügen die Checksume (ch) dem Öffentlichen Schlüssel (pk) sowie dem Krpyptographischen verfahren (ca) hinzu.
 
