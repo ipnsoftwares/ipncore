@@ -60,7 +60,7 @@ adr = pk | ca | ch
 Nun können wir das Ergebniss aus dem letzten Schritt mittels Base32 in einen String Kodieren (fadr) und den Header (''ipnb'') für das Hauptnetzwerk an beginn des Strings anfügen.
 
 <pre style="white-space: pre;">
-fadr =  "ipnb" + BASE32(pk | ca | ch)
+fadr = "ipnb" + BASE32(pk | ca | ch)
 </pre>
 
 
