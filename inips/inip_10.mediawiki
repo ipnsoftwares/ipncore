@@ -32,7 +32,7 @@ Dank Bitcoin und anderen Kryptowährungen haben wir die Erfahrung gemacht das Ba
 
 === Einfache Adresse (SIA) ===
 
-**Eine Einfache Adresse besteht aus 3 Wesentlichen Angaben:**
+Eine Einfache Adresse besteht aus 3 Wesentlichen Angaben:
 - Öffentlicher Schlüssel  (pk | 32 - 128 bytes)
 - Verwendetes Verfahren   (ca | 1 byte)
 - Checksume               (ch | 2 bytes)
@@ -61,7 +61,7 @@ Die Fertige Adresse (fadr) kann nun mit anderen geteilt werden, beispiele für A
 fadr =  "ipnb" + BASE32(pk | ca | ch)
 ```
 
-**Beispiele für Einfache Adressen:**
+Beispiele für Einfache Adressen:
 ```
 ipnbakuksjh6uibxsn4c7sneobgur72fvhm3kkguf65nig4ramv765nacoq
 ipnb3ypvi4jhdqekzt233yzdpzfmxro7miu2io6oxunl3xnxnernsa5qd6q
