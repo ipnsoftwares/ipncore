@@ -38,18 +38,25 @@ Dank Bitcoin und anderen Kryptowährungen haben wir die Erfahrung gemacht das Ba
 - Checksume               (ch | 2 bytes)
 
 Um eine einfache Adresse (SIA) zu erstellen wird ein Hash aus dem Öffentlichen Schlüssle (pk) sowie dem Verwendeten Kryptographischen verfahren (ca) erstellt, diesen Hash verwenden wird als Checksume (ch).
+
 ```
 ch = SHA256(SHA256(pk | ca))
 ```
+
 Als nächstes Extrahieren wir uns die letzetn 2 Bytes des Hashes und fügen die Checksume (ch) dem Öffentlichen Schlüssel (pk) sowie dem Krpyptographischen verfahren (ca) hinzu.
+
 ```
 adr = pk | ca | ch
 ```
+
 Nun können wir das Ergebniss aus dem letzten Schritt mittels Base32 in einen String Kodieren (fadr) und den Header (''ipnb'') für das Hauptnetzwerk an beginn des Strings anfügen.
+
 ```
 fadr =  "ipnb" + BASE32(pk | ca | ch)
 ```
+
 Die Fertige Adresse (fadr) kann nun mit anderen geteilt werden, beispiele für Adressen:
+
 ```
 fadr =  "ipnb" + BASE32(pk | ca | ch)
 ```
