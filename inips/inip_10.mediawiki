@@ -27,6 +27,7 @@ Dank Bitcoin und anderen Kryptowährungen haben wir die Erfahrung gemacht das Ba
 
 
 === Specification: Address Types ===
+
 * Einfache Adresse (SIA)
 * Vektor Adresse (VKA)
 * Bitcoin Shnorr Adressen (BSA)
@@ -36,24 +37,28 @@ Dank Bitcoin und anderen Kryptowährungen haben wir die Erfahrung gemacht das Ba
 
 
 Eine Einfache Adresse besteht aus 3 Wesentlichen Angaben:
+
 * Öffentlicher Schlüssel  (pk | 32 - 128 bytes)
 * Verwendetes Verfahren   (ca | 1 byte)
 * Checksume               (ch | 2 bytes)
 
 
 Um eine einfache Adresse (SIA) zu erstellen wird ein Hash aus dem Öffentlichen Schlüssle (pk) sowie dem Verwendeten Kryptographischen verfahren (ca) erstellt, diesen Hash verwenden wird als Checksume (ch).
+
 <pre style="white-space: pre;">
 ch = SHA256(SHA256(pk | ca))
 </pre>
 
 
 Als nächstes Extrahieren wir uns die letzetn 2 Bytes des Hashes und fügen die Checksume (ch) dem Öffentlichen Schlüssel (pk) sowie dem Krpyptographischen verfahren (ca) hinzu.
+
 <pre style="white-space: pre;">
 adr = pk | ca | ch
 </pre>
 
 
 Nun können wir das Ergebniss aus dem letzten Schritt mittels Base32 in einen String Kodieren (fadr) und den Header (''ipnb'') für das Hauptnetzwerk an beginn des Strings anfügen.
+
 <pre style="white-space: pre;">
 fadr =  "ipnb" + BASE32(pk | ca | ch)
 </pre>
