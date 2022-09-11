@@ -1,8 +1,8 @@
-const { getHashFromDict, convertBech32mAddressToPKey } = require('./crypto');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { addressRawEndPoint } = require('./address_raw_ep');
 const { routingManager } = require('./routing_man');
 const { wsConnectTo, wsServer } = require('./wss');
+const { getHashFromDict } = require('./crypto');
 const { log } = require('console');
 const crypto = require('crypto');
 const URL = require("url").URL;
@@ -269,7 +269,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             }
 
             // Es werden alle Dienste entfernt
-            console.log('ALL_CONNECTION_SERVICES_STOPED', connObj.getPeerPublicKey(), foundProcs);
+            dprintok(10, ['All services for session'], [colors.FgMagenta, connObj.sessionId()], ['have been terminated.'])
             _openPeerServices.delete(connObj.getPeerPublicKey());
         }
 
@@ -498,7 +498,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:10000000, orn:oneTimeAddressRequest, addr:foundAddress, timeout:timeout };
 
         // Aus dem OneTime Value und der Adresse wird ein Hash erstellt
-        const addrSig = CRYPTO_FUNCTIONS.ed25519.sign(Buffer.from(procId, 'hex'), localPrivateKeyPair.privateKey);
+        const decodedProcId = Buffer.from(procId, 'hex');
+        const addrSig = CRYPTO_FUNCTIONS.ed25519.sign(decodedProcId, localPrivateKeyPair.privateKey);
 
         // Das Finale Paket wird gebaut
         const finalPackage = Object.assign(openRouteSessionPackage, { addrsig:Buffer.from(addrSig).toString('hex') });
@@ -538,6 +539,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
             // Es wird geprüft ob der Vorgang bereits bekannt ist
             const reqProcId = crypto.createHash('sha256').update(package.orn).update(package.addrh).digest('hex');
+            const basedReqProcId = Buffer.from(reqProcId, 'hex').toString('base64');
             const resolvedOpenProcs = _openAddressRouteRequestsPack.get(reqProcId);
             if(resolvedOpenProcs !== undefined) {
                 // Es wird geprüft ob der Prozess beretis abgeschlossen wurde
@@ -556,6 +558,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             const firstHash = crypto.createHash('sha256').update(plainBytes).digest();
             const doubleHash = crypto.createHash('sha256').update(firstHash).digest('hex');
             if(doubleHash === package.addrh) {
+                // Debug Print
+                dprintok(10, ['A routing request was received through session'], [colors.FgMagenta, connObj.sessionId()], ['with process id'], [colors.FgCyan, basedReqProcId]);
+
                 // Wird ausgeführt sollte eine Antwort eingetroffen sein
                 const _AFTER_RECIVCE_RESPONSE = async (package, sessionId) => {
                     
@@ -563,8 +568,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
                 // Wird als Timer ausgeführt wenn die Wartezeit abgelaufen ist
                 const _TIMER_LOCAL_ADDRESS_RESP = () => {
+                    dprintok(10, ['The routing request process'], [colors.FgCyan, basedReqProcId], ['has ended.'])
                     _openAddressRouteRequestsPack.delete(reqProcId);
-                    console.log('CLOSED_ADDRESS_REQUEST_ROUTING', reqProcId);
                 };
 
                 // Der Vorgang wird zwischengespeichert
@@ -581,8 +586,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 var newTTL = toutTime - preTTL;
 
                 // Das Antwortpaket wird an den Aktuellen Peer zurückgesendet
-                console.log('ADDRESS_REQUEST_FOR_LOCALLY_ADDRESS_RETRIVED', Buffer.from(localPrivateKeyPair.publicKey).toString('hex'));
-                _SEND_ROUTING_RESPONSE(package.orn, plainBytes.toString('hex'), newTTL, connObj, reqProcId, (r) => {});
+                _SEND_ROUTING_RESPONSE(package.orn, plainBytes.toString('hex'), newTTL, connObj, reqProcId, (r) => {
+                    dprintok(10, ['The routing response packet for event'], [colors.FgCyan, basedReqProcId], ['was transferred to session'], [colors.FgMagenta, connObj.sessionId(),]);
+                });
             }
             else (async() => {
                 // Wird ausgeführt sollte eine Antwort eingetroffen sein
@@ -612,8 +618,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                                     }
 
                                     // Die Daten werdne geupdatet
+                                    dprintok(10, ['The routing request process'], [colors.FgCyan, basedReqProcId], ['was terminated with a response after'], [colors.FgMagenta, Date.now()-processStartingTime], ['ms.']);
                                     const updatedProcValue = Object.assign(totalEndPoints, { peers:updatedPeersList, operationIsOpen:false, procClosed:Date.now() });
-                                    console.log('STOPPED_ADDRESS_REQUEST_ROUTING_PROCESS', reqProcId);
                                     _openAddressRouteRequestsPack.set(reqProcId, updatedProcValue);
                                     hasFoundPeerFromRecive = true;
                                 }
@@ -669,8 +675,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                         // Das Paket wird Signiert
                         const signatedPackage = _SIGN_PRE_PACKAGE(openRouteSessionPackage);
 
+                        // Das Paket wird abgesendet
                         firstExtractedPeer.ep.sendPackage(signatedPackage, (r) => {
-                            console.log('RESPONSE_PACKAGE_FORWARDED', firstExtractedPeer.ep.sessionId());
+                            dprintok(10, ['The routing response packet for event'], [colors.FgCyan, basedReqProcId], ['was sent to session'], [colors.FgMagenta, connObj.sessionId(), colors.Reset, '.']);
                         });
                     };
 
@@ -692,8 +699,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                     if(retrProc === undefined) { console.log('UNKOWN_TIMER_PROCESS_CALL_ABORTED'); return; }
 
                     // Es wird geprüft ob es eine Antwort auf dieses Paket gab
-                    if(retrProc.operationIsOpen === true) { console.log('NO_RESPONSE_FOR_ADDRESS_ROUTE_REQUEST_ABORTED', reqProcId); }
-                    else { console.log('HAS_RESPONSE_FOR_THIS_REQUEST_RETRIVED', reqProcId); }
+                    if(retrProc.operationIsOpen === true) { dprintok(10, ['The routing request process'], [colors.FgCyan, basedReqProcId], ['was terminated without a response.']); }
+                    else { dprintinfo(10, ['Routing request process'], [colors.FgCyan, basedReqProcId], ['was closed successfully.']); }
 
                     // Der Vorgang wird entfernt
                     _openAddressRouteRequestsPack.delete(reqProcId);
@@ -712,9 +719,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                         }
 
                         // Wenn kein Passender Eintrag gefunden wurde, wird ein neuer Hinzugefügt
+                        dprintok(10, ['The routing request packet for operation'], [colors.FgCyan, Buffer.from(reqProcId, 'hex').toString('base64')], ['was forwarded to session'], [colors.FgMagenta, connObj.sessionId()]);
                         tempObj.peers.push({ send:true, recive:false, sendResponse:false, sendRequest:true, reciveRequest:false, reciveResponse:false, first:false, ep:ep, entryAddTimestamp:Date.now() });
                         _openAddressRouteRequestsPack.set(reqProcId, tempObj);
-                        console.log('FORWARD_ADDRESS_ROUTE_REQUEST_TO', ep.sessionId());
                     }
                 };
 
@@ -772,9 +779,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Aus der VorgangsID sowie dem Double Hash der Adressen werden mittels Hash zusammengeführt
             const finalProcId = crypto.createHash('sha256').update(package.orn).update(doubleHash).digest('hex');
 
-            // Es wird geprüft ob der Vorgang erfolgreich abgeschlossen wurde
+            // Es wird geprüft ob die Signatur korrekt ist
             if(CRYPTO_FUNCTIONS.ed25519.verify_sig(Buffer.from(package.addrsig, 'hex'), Buffer.from(finalProcId, 'hex'), Buffer.from(package.addr, 'hex')) === false) {
-                console.log('INVALID_ADDRESS_SIGNATURE_PACKAGE_DROPED');
+                console.log('INVALID_ADDRESS_SIGNATURE_PACKAGE_DROPED', package);
                 return;
             }
 
@@ -906,6 +913,16 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         const serverObj = wsServer(_SOCKET_FUNCTIONS, localPort, localNodeFunctions);
     };
 
+    // Startet ein Ping Vorgang für eine bestimmte Adresse
+    const pingIpnAddress = (addressPublicKey, bodyDataSize, callback=null) => {
+        // Es wird geprüft ob eine Route für diese Adresse beaknnt ist
+
+        // Es wird ein Zufälliger Datensatz erstellt
+        const randomPingData = crypto.randomBytes(bodyDataSize);
+
+        // Die Ablaufzeit wird ermittelt
+    };
+
     // Wird verwendet um eine Webserver verbindung herzustellen
     const addPeerClientConnection = (serverURL, accepted_functions=['boot_node'], cb=null, reconnectTime=5000) => {
         // Die URL wird geprüft
@@ -943,7 +960,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Wird verwendet um eine Adressroute abzufagen
-    const initAddressRoute = (publicKey, callback=null, timeout=120000, maxRecivingResponses=1) => {
+    const initAddressRoute = (publicKey, callback=null, timeout=120000, maxRecivingResponses=1, pingProcessAfterAddressFound=null) => {
         // Es wird geprüft ob es sich um die Lokale Adresse handelt, wenn ja wird der Vorgang abgerbrochen!
         if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === publicKey) {
             callback('aborted_is_local_address');
@@ -968,9 +985,10 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
             // Die VorgangsID wird erzeugt (Die VorgangsID besteht aus einem SHA256 Hash, welcher sich aus der RandomID sowie dem Addresshahs zusammensetzt)
             const finalProcId = crypto.createHash('sha256').update(randSessionId).update(doubleHash).digest('hex');
+            const finalProcIdBased = Buffer.from(finalProcId, 'hex').toString('base64');
 
             // Log Entry
-            console.log('SCANNING_NETWORK_FOR_ADDRESS', publicKey,  Buffer.from(finalProcId, 'hex').toString('hex'));
+            dprintok(10, ['The address'], [colors.FgMagenta, publicKey], ['is searched in the network.'])
 
             // Wird aufgerufen wenn die Wartezeit abgelaufen ist
             const TIMEOUT_FNC = () => {
@@ -981,7 +999,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 }
 
                 // Die Callback Funktion wird aufgerufen
-                console.log('ADDRESS_ROUTE_REQUEST_PROCESS_CLOSED', Buffer.from(finalProcId, 'hex').toString('base64'));
+                dprintinfo(10, ['Routing request process'], [colors.FgCyan, basedReqProcId], ['was closed.']);
                 _openAddressRouteRequestsPack.delete(finalProcId);
                 clearTimeout(currentWaitTimer);
                 currentWaitTimer = null;
@@ -1054,7 +1072,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
                                     // Die Änderungen werden gespeichert
                                     const updatedProcValue = Object.assign(totalEndPoints, { peers:updatedPeersList, operationIsOpen:false, procClosed:Date.now() });
-                                    console.log('STOPPED_ADDRESS_REQUEST_ROUTING_PROCESS', Buffer.from(finalProcId, 'hex').toString('base64'));
                                     _openAddressRouteRequestsPack.set(finalProcId, updatedProcValue);
                                     hasFoundRecivedPeerData = true;
                                 }
@@ -1082,14 +1099,31 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                     // Die Route wird für die Aktuelle Verbindung registriert
                     await _rManager.addRoute(cEpObj.sessionId(), package.addr);
 
-                    // Es wird geprüft ob der Vorgang bereits durchgeführt wurde
-                    if(!ENTER_RESOLVED_PACKAGE_OBJ.operationIsOpen) return;
-
                     // Die Operation wird als Erledigt Markiert
                     ENTER_RESOLVED_PACKAGE_OBJ.operationIsOpen = false;
 
-                    // Die Verbindung wurde erfolgreich Initalisiert
-                    if(callback !== null) callback(true);
+                    // Debug
+                    if(recivedResponses === 1) dprintok(10, ['The routing process'], [colors.FgCyan, finalProcIdBased], ['was successfully answered after'], [colors.FgMagenta, Date.now() - currentTimestamp, colors.Reset ,' ms from session'], [colors.FgMagenta, cEpObj.sessionId(), colors.Reset, '.']);
+
+                    // Es wird geprüft ob ein Ping Ausgeführt weden soll nachdem die Route für die Adresse beaknnt ist
+                    if(pingProcessAfterAddressFound !== undefined && pingProcessAfterAddressFound !== null) {
+                        // Es wird ein Ping Paket mit 512 Bytes an die Adresse gesendet und auf eine Antwort gewartet
+                        pingIpnAddress(publicKey, 512, (state) => {
+                            // Es wird geprüft ob ein Antwortpaket empfangen wurde
+                            if(state !== true) {
+                                // Der Vorgang wurde ohne eine Antwort abeschlossen
+                                if(callback !== null) callback(false);
+                            }
+                            else {
+                                // Der Vorgang wurde erfolgreich durchgeführt
+                                if(callback !== null) callback(true);
+                            }
+                        });
+                    }
+                    else {
+                        // Die Route für die Adresse wurde erfolgreich Initalisiert
+                        if(callback !== null) callback(true);
+                    }
                 }
             };
 

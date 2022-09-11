@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const base32 = require('base32');
 const cbor = require('cbor');
 
 
@@ -22,7 +23,12 @@ const convertBech32mAddressToPKey = (bech32Address) => {
     return Buffer.from(bech32Address.substring(3), 'hex');
 };
 
+// Erstellt eine Zufällige SessionID ab
+const createRandomSessionId = () => {
+    return base32.encode(crypto.randomBytes(14)).toUpperCase();
+};
 
 
 
-module.exports = { getHashFromDict:getHashFromDict, convertHexPublicKeyToBech32m:convertHexPublicKeyToBech32m, convertBech32mAddressToPKey:convertBech32mAddressToPKey }
+
+module.exports = { getHashFromDict:getHashFromDict, convertHexPublicKeyToBech32m:convertHexPublicKeyToBech32m, convertBech32mAddressToPKey:convertBech32mAddressToPKey, createRandomSessionId:createRandomSessionId }
