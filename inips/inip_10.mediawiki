@@ -26,9 +26,10 @@ Der IPN-Core verwendet eine Hexkodierung für Öffentliche Schlüssel, der Vorte
 Dank Bitcoin und anderen Kryptowährungen haben wir die Erfahrung gemacht das Base32, Base58 oder Bech32 sich Perfekt als Kodierung für Adressen eignet. Aus diesem Grunde habe ich mich entschieden einige Standards für die Formatierung von IPN Adressen zu erstellen. Durch die Eigenschaft das Öffentliche Schlüssels im Protokoll mittels Hex übertragen werden, handelt es sich um einen SoftFork, die Kernregeln des IPN-Netzwerkes werden nicht verändert.
 
 === Specification: Address Types ===
-- Einfache Adresse          (SIA)
-- Vektor Adresse            (VKA)
-- Bitcoin Shnorr Adressen   (BSA)
+
+- Einfache Adresse (SIA)
+- Vektor Adresse (VKA)
+- Bitcoin Shnorr Adressen (BSA)
 
 === Einfache Adresse (SIA) ===
 
