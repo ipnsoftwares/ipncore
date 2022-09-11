@@ -1,0 +1,64 @@
+<pre>
+  INIP: 10
+  Title: Einfachs Format für Öffentliche Schlüssel
+  Autor: LeTaylor
+  Comments-Summary: Noch keine Kommentare.
+  Status: Final
+  Type: Standards Track
+  Lizenz: BSD-2-Clause
+  Erstellt: 2022-10-10
+</pre>
+
+== Einführung ==
+
+=== Abstrakt ===
+
+Dieses Dokument beschreibt die Standards zur Formatierung von IPN-Adressen.
+
+=== Copyright ===
+
+Dieses Dokument ist unter der 2-Klausel-BSD-Lizenz lizenziert.
+
+=== Motivation ===
+
+Der IPN-Core verwendet eine Hexkodierung für Öffentliche Schlüssel, der Vorteil von einer Hexkodierung ist dass ein Nutzer weder auf die Groß / Kleinschreibung achten musss, jedoch benötigt eine Hexkodierung mehr Speicherplatz.
+Dank Bitcoin und anderen Kryptowährungen haben wir die Erfahrung gemacht das Base32, Base58 oder Bech32 sich Perfekt als Kodierung für Adressen eignet. Aus diesem Grunde habe ich mich entschieden einige Standards für die Formatierung von IPN Adressen zu erstellen. Durch die Eigenschaft das Öffentliche Schlüssels im Protokoll mittels Hex übertragen werden, handelt es sich um einen SoftFork, die Kernregeln des IPN-Netzwerkes werden nicht verändert.
+
+=== Specification: Address Types ===
+- Einfache Adresse          (SIA)
+- Vektor Adresse            (VKA)
+- Bitcoin Shnorr Adressen   (BSA)
+
+=== Einfache Adresse (SIA) ===
+
+**Eine Einfache Adresse besteht aus 3 Wesentlichen Angaben:**
+- Öffentlicher Schlüssel  (pk | 32 - 128 bytes)
+- Verwendetes Verfahren   (ca | 1 byte)
+- Checksume               (ch | 2 bytes)
+
+Um eine einfache Adresse (SIA) zu erstellen wird ein Hash aus dem Öffentlichen Schlüssle (pk) sowie dem Verwendeten Kryptographischen verfahren (ca) erstellt, diesen Hash verwenden wird als Checksume (ch).
+```
+ch = SHA256(SHA256(pk | ca))
+```
+Als nächstes Extrahieren wir uns die letzetn 2 Bytes des Hashes und fügen die Checksume (ch) dem Öffentlichen Schlüssel (pk) sowie dem Krpyptographischen verfahren (ca) hinzu.
+```
+adr = pk | ca | ch
+```
+Nun können wir das Ergebniss aus dem letzten Schritt mittels Base32 in einen String Kodieren (fadr) und den Header (''ipnb'') für das Hauptnetzwerk an beginn des Strings anfügen.
+```
+fadr =  "ipnb" + BASE32(pk | ca | ch)
+```
+Die Fertige Adresse (fadr) kann nun mit anderen geteilt werden, beispiele für Adressen:
+```
+fadr =  "ipnb" + BASE32(pk | ca | ch)
+```
+
+**Beispiele für Einfache Adressen:**
+```
+ipnbakuksjh6uibxsn4c7sneobgur72fvhm3kkguf65nig4ramv765nacoq
+ipnb3ypvi4jhdqekzt233yzdpzfmxro7miu2io6oxunl3xnxnernsa5qd6q
+ipnbysigvurvbcgtn6bombjagot6cgsi6ca4m5unvd36dtak66s3nimqcaa
+ipnbuplxf6ydxver4omnf2fehewcowqve3pmp3gjrdyvftxvpzdnqjracxq
+ipnbokk5ndlgypwtw5s6iq5tur7d45wc5l2akbqeycnyefr2ruq2bjeqcna
+```
+
