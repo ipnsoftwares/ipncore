@@ -77,7 +77,7 @@ ipnbokk5ndlgypwtw5s6iq5tur7d45wc5l2akbqeycnyefr2ruq2bjeqcna
 
 === Vektor Adresse (VKA) ===
 
-Bei einer Vektor Adresse handelt es sich um einen JSON Datensatz, dieser Datensatz wird mittels CBOR in Bytes umgewandelt welche am ende mittels Base32 Kodiert werden.
+Bei einer Vektor Adresse (VKA) handelt es sich um einen JSON Datensatz, dieser Datensatz wird mittels CBOR in Bytes umgewandelt welche am ende mittels Base32 Kodiert werden.
 
 
 
