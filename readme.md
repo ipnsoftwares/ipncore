@@ -1,4 +1,4 @@
-# Interplanetary Network (IPN), Open Source (MIT), Decentralized, P2P, Third and second layer support
+# Interplanetary Network (IPN), Open Source (MIT), Decentralized P2P Network
 
 ## The following functions are supported
 - [Decentralized routing protocol (Artemis Protocol | INIP1)](https://github.com/user/repo/blob/branch/other_file.md)
