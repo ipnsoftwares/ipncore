@@ -907,20 +907,16 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         initAddressRoute:(publicKey, callback, timeout) => initAddressRoute(publicKey, callback, timeout)
     };
 
+    // Speichert die Standardeinstellungen für Adress EndPoints ab
+    const _DEFAULT_ADDRESS_RAW_EP = {
+        autoFetchRouteForAddress: false,
+        autoReFetchAddressRoute: false,
+    };
+
     // Wir verwendet um einen Webserver zu erstellen
     const addNewWSServer = (localPort) => {
         // Erzeugt ein neues Websocket Server objekt
         const serverObj = wsServer(_SOCKET_FUNCTIONS, localPort, localNodeFunctions);
-    };
-
-    // Startet ein Ping Vorgang für eine bestimmte Adresse
-    const pingIpnAddress = (addressPublicKey, bodyDataSize, callback=null) => {
-        // Es wird geprüft ob eine Route für diese Adresse beaknnt ist
-
-        // Es wird ein Zufälliger Datensatz erstellt
-        const randomPingData = crypto.randomBytes(bodyDataSize);
-
-        // Die Ablaufzeit wird ermittelt
     };
 
     // Wird verwendet um eine Webserver verbindung herzustellen
@@ -1159,7 +1155,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Gibt einen RAW EndPoint zurück
-    const getAddressRawEndPoint = (destPublicKey, callback=null) => {
+    const getAddressRawEndPoint = (destPublicKey, addressRawEpConfig=_DEFAULT_ADDRESS_RAW_EP, callback=null) => {
         (async() => {
             // Aus der Empfänger Adresse sowie der Absender Adresse wird ein Hash erstellt
             const endPointHash = crypto.createHash('sha256')
@@ -1171,16 +1167,26 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             const openEP = await _openRawEndPoints.get(endPointHash);
             if(openEP !== undefined) {
                 callback(openEP);
-                return;
+                return; 
             }
 
             // Es wird gepüft ob es eine Route für diese Adresse gibt
             const routeEP = await _rManager.getAddressRouteEP(destPublicKey);
-            if(routeEP === false) { callback('unkown_address_route'); return; }
+            if(routeEP === false) {
+                callback('unkown_address_route');
+                return;
+            }
 
             // Das AddressRawEndPoint Objekt wird erstellt
-            const ipeResult = await addressRawEndPoint(_RAW_FUNCTIONS, routeEP, localPrivateKeyPair, localPrivateKeyPair, destPublicKey, CRYPTO_FUNCTIONS, (error, arep) => {
-                callback(error, arep); 
+            const ipeResult = await addressRawEndPoint(_RAW_FUNCTIONS, routeEP, localPrivateKeyPair, localPrivateKeyPair, destPublicKey, CRYPTO_FUNCTIONS, addressRawEpConfig, (error, arep) => {
+                // Es wird geprüft ob ein Fehler aufgetreten ist
+                if(error !== undefined && error !== null) {
+                    _openRawEndPoints.delete(endPointHash);
+                    return;
+                }
+
+                // Die Verbindung wird zurückgegeben
+                callback(null, arep);
             });
 
             // Der Vorgang wird registriert

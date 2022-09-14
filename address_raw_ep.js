@@ -4,9 +4,9 @@ const crypto = require('crypto');
 
 
 // Stellt einen Address to Adress RAW EndPoint dar
-const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, sourcePrivateKey, destinationPublicKey, crypto_functions, rcb) => {
+const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, sourcePrivateKey, destinationPublicKey, crypto_functions, socketConfig, rcb) => {
     // Es wird geprüft ob eine Route verfügbar ist
-    if(! await routeEP.isUseable()) { return 'unkown_route_for_address'; }
+    if(!await routeEP.isUseable()) { return 'unkown_route_for_address'; }
 
     // Speichert alle Offenen Vorgänge ab
     var _openSYNCProcesses = new Map();
