@@ -19,11 +19,7 @@
 
 ## To do list
 - [ ] Commandline Console for IPN-Core Service
-- [ ] Schnorr (BIP340) integration
-- [ ] SECP256k1 integration
-- [ ] Frost-ED25519 integration
 - [ ] Pure TCP, with and without SSL
-- [ ] Anonymous Decentralized Routing
 - [ ] NodeJS / Javascript API
 - [ ] DNS boot node seeding
 - [ ] Pure UDP without SSL
