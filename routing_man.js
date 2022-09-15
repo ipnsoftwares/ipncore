@@ -1,4 +1,5 @@
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
+const EventEmitter = require('events');
 const crypto = require('crypto');
 
 
@@ -153,6 +154,9 @@ const routingManager = (signWithNodeKey) => {
         if(sessionIds === undefined) return false;
         if(sessionIds.length === 0) return false;
 
+        // Speichert den eventEmitter ab
+        const eventEmitter = new EventEmitter();
+
         // Diese Funktion gibt an ob die Route für diese Adresse verfügbar ist
         const _ADDRESS_ROUTE_IS_AVAIL = async () => {
             const tsid = pkeyToSessionEP.get(publicKey);
@@ -170,8 +174,31 @@ const routingManager = (signWithNodeKey) => {
             return returnValue;
         };
 
+        // Gibt die Schnellsten Peers für die Verbindung aus
+        const _GET_FASTED_PEER = (callbackPeers) => {
+            // Es werden alle Peers abgerufen
+            _GET_ALL_PEERS()
+            .then((t) => {
+                // Es wird geprüft ob eine Verbindung verfügbar ist
+                if(t.length <= 0) { callbackPeers(false); return; };
+
+                // Die Verbindungen werden nach geschwindigkeit gesucht
+                const sortedPerrs = t.sort((a,b) => a.pingTime() - b.pingTime());
+
+                // Die Schnellste Verbindung wird zurückgegeben
+                callbackPeers(null, sortedPerrs[0]);
+            })
+            .catch((q) => callbackPeers(q));
+        };
+
         // Das Objekt wird zurückgegeben
-        return { isUseable:() => _ADDRESS_ROUTE_IS_AVAIL(), getAllPeers:() => _GET_ALL_PEERS(), hasPeers:() => _PEERS_AVAIL() }
+        return {
+            getFastedEndPoint:(callbackPeers) => _GET_FASTED_PEER(callbackPeers),
+            isUseable:() => _ADDRESS_ROUTE_IS_AVAIL(),
+            getAllPeers:() => _GET_ALL_PEERS(),
+            registerEvent:eventEmitter.on,
+            hasPeers:() => _PEERS_AVAIL() 
+        }
     };
 
     // Signalisiert das ein Paket von einer bestimmten Adresse Empangen wurde
@@ -224,7 +251,7 @@ const routingManager = (signWithNodeKey) => {
     };
 
     // Nimmt Pakete entgegen welche versendet werden sollen
-    const _enterOutgoingLayer2Packages = (destination, framePackage) => {
+    const _enterOutgoingLayer2Packages = (destination, framePackage, callbackSend) => {
         // Es wird geprüft ob es sich bei der Empfänger Adresse um eine bekannte Adresse handelt
         const endPointSession = pkeyToSessionEP.get(destination);
         if(endPointSession === undefined) {
@@ -245,6 +272,9 @@ const routingManager = (signWithNodeKey) => {
             // Das Paket wird versendet
             firstConnection.enterPackage(signatedPackage, () => {
                 console.log('PACKAGE_SEND_TO', destination, endPointSession[0]);
+                if(callbackSend !== undefined) {
+                    callbackSend(true);
+                }
             })
         })();
     };

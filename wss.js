@@ -298,7 +298,7 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
             wsConnObject.close(); 
         }
 
-        // Es wird geprüft ob der Öffentliche Schlüssel sowie die Signatur vorhanden sind
+        // Es wird geprüft ob der Öffentliche Schlüssel sowie die Signatur vorhanden ist
         if(!_VERIFY_PACKAGE_SIGNATURE(_readedPackage)) {
             dprinterror(10, ['A packet with an invalid signature was received in session'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
             _errorRecivedPackageBytes += message.length;

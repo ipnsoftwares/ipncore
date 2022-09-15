@@ -273,18 +273,26 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             _openPeerServices.delete(connObj.getPeerPublicKey());
         }
 
-        // Es wird geprüft ob der Node benachrichtigt werden möchte, sollten dies der Fall sein, wird die Benachrichtigung entfernt
-        if(_notifyPeerByNewOutPeerConnection.includes(connObj.getPeerPublicKey())) {
-            delete _notifyPeerByNewOutPeerConnection.push(connObj.getPeerPublicKey());
-        }
-
         // Der Aktuelle Vorgang wird Asynchrone durchgeführt
         (async() => {
-            // Der Öffentliche Schlüssel des Nodes werden entfernt
-            delete _openConnectionPeers.set(connObj.getPeerPublicKey());
+            // Es wird geprüft ob der Node benachrichtigt werden möchte, sollten dies der Fall sein, wird die Benachrichtigung entfernt
+            if(_notifyPeerByNewOutPeerConnection.includes(connObj.getPeerPublicKey())) {
+                _notifyPeerByNewOutPeerConnection = _notifyPeerByNewOutPeerConnection.filter(function(value, index, arr){ 
+                    return value != connObj.getPeerPublicKey();
+                });
+            }
+
+            // Die Verbindung wird aus den Offenenen Verbindingen heraus entfernt
+            _openConnectionPeers = _openConnectionPeers.filter(function(value, index, arr){ 
+                return value != connObj.getPeerPublicKey();
+            });
+
+            // Der Öffentliche Schlüssels des Peers wird entfernt
             _peerPubKeys = _peerPubKeys.filter(function(ele){
                 return ele != connObj.getPeerPublicKey();
             });
+
+            // Der Peer wird als FullyNode entfernt
             _fullRelayNodes = _fullRelayNodes.filter(function(ele){
                 if(ele === connObj.getPeerPublicKey()) dprintinfo(10, ['Peer'], [colors.FgYellow, connObj.getPeerPublicKey()], ['on session'], [colors.FgMagenta, connObj.sessionId()], ['was unregistered as a'], [colors.FgMagenta, 'FullyNode']);
                 return ele != connObj.getPeerPublicKey();
@@ -364,8 +372,12 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         if(sigantedFrame.hasOwnProperty('source') !== true) return false;
         if(sigantedFrame.hasOwnProperty('ssig') !== true) return false;
 
+        // Es wird geprüt ob der Verschlüsselungsalgorrytmus korrekt ist
+        const splitedValues = sigantedFrame.crypto_algo.split('_');
+        if(splitedValues.length === 0) return false;
+
         // Es wird geprüft ob die Signatur korrekt ist
-        switch (sigantedFrame.crypto_algo) {
+        switch (splitedValues[0]) {
             case "ed25519":
                 // Das Paketobjekt wird geklont
                 let clonedObj = JSON.parse(JSON.stringify(sigantedFrame));
@@ -390,7 +402,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 return true;
             case "secp256k1":
                 return true;
-            default: wsConnObject.close(); console.log('Currupt connection, closed'); return;
+            default: return false;
         }
     };
 
@@ -406,61 +418,81 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     // Verarbeitet Pakete welche für den Aktuellen Node bestimmt sind
     const _ENTER_LOCAL_LAYER2_PACKAGE = (packageFrame, connObj, callback) => {
         // Log
-        console.log('PACKAGE_RECIVED', packageFrame.destination, connObj.sessionId());
+        dprintok(10, ['Package recived over'], [colors.FgMagenta, connObj.sessionId()], ['from ', colors.FgYellow, packageFrame.source]);
 
-        // Der Pakettyp wird geprüft
-        switch(packageFrame.type) {
-            case 'sync':
-                // Das Antwortframe wird gebaut
-                const preLayer2Frame = { type:'rsync', destination:packageFrame.source, crypto_algo:'ed25519', rron:packageFrame.ron };
+        // Der Paketinhalt wird entschlüsselt
+        const decryptedPackage = packageFrame.body.ebody;
 
-                // Das Antwortframe wird geantwortet
-                const signatedLayer2Frame = _SIGN_FRAME(preLayer2Frame);
+        // Es wird geprüft ob ein Pakettyp vorhanden ist
+        if(decryptedPackage.hasOwnProperty('type') === false) { callback(false); return; }
 
-                // Das Antwortframe wird zurückgesendet
-                console.log('ADDRESS_SYNC');
-                _rManager.enterOutgoingLayer2Packages(packageFrame.source, signatedLayer2Frame);
-                break;
-            case 'rsync':
-                // Aus der Absender Adresse sowie der Aktuellen Empfänger Adresse wird ein Hash erstellt
-                const endPointHash = crypto.createHash('sha256')
-                .update(Buffer.from(packageFrame.source, 'hex'))
-                .update(Buffer.from(localPrivateKeyPair.publicKey))
-                .digest('hex');
+        // Es wird geprüft ob es sich um ein Ping Paket handelt
+        if(decryptedPackage.type === 'ping') {
+            // Es wird ein Hash aus den Zufälligen Daten erstellt
+            const packageRandomHash = crypto.createHash('sha256').update(Buffer.from(decryptedPackage.rdata, 'base64')).digest('hex');
 
-                // Es wird geprüft ob es einen Passenden EndPoint gibt
-                const ftempRawEndPoint = _openRawEndPoints.get(endPointHash);
-                if(ftempRawEndPoint === undefined) {
-                    console.log('NO_OPEN_ENDPOINT_PACKAGE_DROPED');
-                    return;
+            // Es wird eine Zufällige Nonce erstellt, mit dieser Nonce werden die Daten verschlüsselt
+            const randomValue = crypto.randomBytes(24);
+
+            // Das Antwortframe wird gebaut
+            const preLayer2Frame = {
+                crypto_algo:'ed25519_salsa20_poly1305',
+                source:Buffer.from(localPrivateKeyPair.publicKey).toString('hex'),
+                destination:packageFrame.source,
+                body:{
+                    nonce:randomValue.toString('base64'),
+                    ebody:{
+                        type:'pong', sptnt:30000,
+                        packRHash:packageRandomHash 
+                    },
+                    pbody:{}
                 }
+            };
 
-                // Das Paket wird zurück an den RawSocket gegeben
-                ftempRawEndPoint.enterPackage(packageFrame, connObj);
-                break;
-            case 'dtrgrm':
-                // Das Paket wird an den Loakeln EndPointManager übergeben
-                break
-            case 'sess':
-                // Das Paket wird an den Loakeln EndPointManager übergeben
-                break;
-            default:
-                console.log('UNKONW_PACKAGE_TYPE_PACKAGE_DROPED');
-                return;
+            // Das Frame wird Signiert
+            const signatedFrame = _SIGN_FRAME(preLayer2Frame);
+
+            // Das Paket wird zum versenden an den Routing Manager übergeben
+            _rManager.enterOutgoingLayer2Packages(packageFrame.source, signatedFrame, (r) => {
+                callback();
+                console.log('PING_REPLYED');
+            });
+
+            // Die Aufgabe wurde erfolgreich fertigestellt
+            return;
         }
 
-        // Die Callback funktion wird ausgeführt
-        callback();
+        // Aus der Empfänger Adresse sowie der Absender Adresse wird ein Hash erstellt
+        const endPointHash = crypto.createHash('sha256')
+        .update(Buffer.from(packageFrame.source, 'hex'))
+        .update(Buffer.from(localPrivateKeyPair.publicKey))
+        .digest('hex');
+
+        // Es wird geprüft ob es bereits einen Offenen RAW Address EndPoint gibt
+        const openEP = _openRawEndPoints.get(endPointHash);
+        if(openEP === undefined) {
+            callback(false);
+            return; 
+        }
+
+        // Das Paket wird an den EndPunkt übergeben
+        openEP.enterPackage(packageFrame, connObj, (r) => {
+            if(r === true) callback();
+            else callback(false);
+        });
     };
 
     // Nimt eintreffende Pakete entgegen
     const _ENTER_RECIVED_SECOND_LAYER_PACKAGES = (package, connObj) => {
         // Es wird geprüft ob die Datenfelder vorhanden sind
-        if(!package.hasOwnProperty('frame')) { connObj.close(); console.log('AT6TR'); return; }
-        if(!package.frame.hasOwnProperty('type')) { connObj.close(); console.log('AT6TR'); return; }
-        if(!package.frame.hasOwnProperty('destination')) { connObj.close(); console.log('AT6TR'); return; }
-        if(!package.frame.hasOwnProperty('source')) { connObj.close(); console.log('AT6TR'); return; }
-        if(!package.frame.hasOwnProperty('ssig')) { connObj.close(); console.log('AT6TR'); return; }
+        if(!package.hasOwnProperty('frame')) { connObj.close(); console.log('AT6TR1'); return; }
+        if(!package.frame.hasOwnProperty('destination')) { connObj.close(); console.log('AT6TR3'); return; }
+        if(!package.frame.hasOwnProperty('source')) { connObj.close(); console.log('AT6TR4'); return; }
+        if(!package.frame.hasOwnProperty('ssig')) { connObj.close(); console.log('AT6TR5'); return; }
+        if(!package.frame.hasOwnProperty('body')) { connObj.close(); console.log('AT6TR6'); return; }
+        if(!package.frame.body.hasOwnProperty('nonce')) { connObj.close(); console.log('AT6TR7'); return; }
+        if(!package.frame.body.hasOwnProperty('pbody')) { connObj.close(); console.log('AT6TR8'); return; }
+        if(!package.frame.body.hasOwnProperty('ebody')) { connObj.close(); console.log('AT6TR9'); return; }
 
         // Es wird geprüft ob die Frame Signatur korrekt ist
         if(!_VERIFY_FRAME_SIGNATURE(package.frame)) {
@@ -477,7 +509,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 if(!r) { await _rManager.addRoute(connObj.sessionId(), package.frame.source); }
 
                 // Das Paket wird Lokal weiter verarbeitet
-                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, () => {
+                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState=true) => {
                     // Der Routing Manager wird Signalisiert das ein Paket emfpangen wurde
                     _rManager.signalPackageReciveFromPKey(package.frame.source, 0)
                     .then((signalResult) => {
@@ -561,14 +593,14 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 // Debug Print
                 dprintok(10, ['A routing request was received through session'], [colors.FgMagenta, connObj.sessionId()], ['with process id'], [colors.FgCyan, basedReqProcId]);
 
-                // Wird ausgeführt sollte eine Antwort eingetroffen sein
+                // Wird ausgeführt sollte eine Antwort eingetroffen sein, in dem fall wird das Paket verworfen, da die Anfrage bereits beantwortet wurde
                 const _AFTER_RECIVCE_RESPONSE = async (package, sessionId) => {
                     
                 };
 
-                // Wird als Timer ausgeführt wenn die Wartezeit abgelaufen ist
+                // Wird als Timer ausgeführt wenn die Wartezeit abgelaufen ist, wenn ja wird der Vorgang aus dem Cache entfernt und in die LongDB geschrieben
                 const _TIMER_LOCAL_ADDRESS_RESP = () => {
-                    dprintok(10, ['The routing request process'], [colors.FgCyan, basedReqProcId], ['has ended.'])
+                    dprintinfo(10, ['The routing request process'], [colors.FgCyan, basedReqProcId], ['has ended.'])
                     _openAddressRouteRequestsPack.delete(reqProcId);
                 };
 
@@ -995,7 +1027,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 }
 
                 // Die Callback Funktion wird aufgerufen
-                dprintinfo(10, ['Routing request process'], [colors.FgCyan, basedReqProcId], ['was closed.']);
+                dprintinfo(10, ['Routing request process'], [colors.FgCyan, finalProcIdBased], ['was closed.']);
                 _openAddressRouteRequestsPack.delete(finalProcId);
                 clearTimeout(currentWaitTimer);
                 currentWaitTimer = null;
@@ -1155,7 +1187,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Gibt einen RAW EndPoint zurück
-    const getAddressRawEndPoint = (destPublicKey, addressRawEpConfig=_DEFAULT_ADDRESS_RAW_EP, callback=null) => {
+    const getAddressRawEndPoint = (destPublicKey, callback=null, addressRawEpConfig=_DEFAULT_ADDRESS_RAW_EP) => {
         (async() => {
             // Aus der Empfänger Adresse sowie der Absender Adresse wird ein Hash erstellt
             const endPointHash = crypto.createHash('sha256')
