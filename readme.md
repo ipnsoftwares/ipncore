@@ -28,6 +28,7 @@
 - [ ] DNS boot node seeding
 - [ ] Pure UDP without SSL
 - [ ] Rust, C, C++ API
+- [ ] QUIC-Protocol Support
 - [ ] Second IPN DNS
 - [ ] I2P support
 - [ ] Python API
