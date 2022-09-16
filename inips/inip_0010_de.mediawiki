@@ -5,7 +5,7 @@
   Comments-Summary: Noch keine Kommentare.
   Status: Final
   Type: Standards Track
-  Lizenz: BSD-2-Clause
+  Lizenz: MIT
   Erstellt: 2022-10-10
 </pre>
 
