@@ -25,12 +25,10 @@
 - [ ] Second IPN DNS
 - [ ] Tor and I2P support
 - [ ] [Crypto algorithms (INIP0004):](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
-  - [ ] NIST256p,
-  - [ ] NIST521p,
-  - [ ] SECP256k1,
+  - [ ] [NIST256p](https://github.com/xiawu/secp256r1-node#readme),
+  - [ ] [SECP256k1](https://github.com/paulmillr/noble-secp256k1),
   - [ ] [AES256-Bit](https://github.com/brix/crypto-js),
   - [ ] [FROST-Ed25519](https://docs.rs/frost-dalek/latest/frost_dalek/),
-  - [ ] Schnorr SECP256k1
   - [X] [ED25519 / Curve25519](https://github.com/paixaop/node-sodium#readme)
 - [ ] API's / Full-Libraries:
   - [ ] Javascript / NodeJS
