@@ -23,7 +23,6 @@
 - [ ] [DNS Node seeding (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
 - [ ] [DDoS Protection (INIP0013)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0013_de.mediawiki)
 - [ ] [Crypto algorithms (INIP0004):](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
-  - [ ] [NIST256p](https://github.com/xiawu/secp256r1-node#readme),
   - [ ] [SECP256k1](https://github.com/paulmillr/noble-secp256k1),
   - [ ] [AES256-Bit](https://github.com/brix/crypto-js),
   - [ ] [FROST-Ed25519](https://docs.rs/frost-dalek/latest/frost_dalek/),
