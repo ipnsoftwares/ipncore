@@ -1,6 +1,6 @@
 <pre>
   INIP: 7
-  Title: Datagram
+  Title: Layer 2 - Datagram
   Autor: LeTaylor
   Comments-Summary: Noch keine Kommentare.
   Status: Final
