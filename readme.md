@@ -22,7 +22,6 @@
 - [ ] [DDoS Protection (INIP0012)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0012_de.mediawiki)
 - [ ] DNS boot node seeding
 - [ ] Ip2IpnAddrssProxy
-- [ ] Tor and I2P support
 - [ ] [Crypto algorithms (INIP0004):](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
   - [ ] [NIST256p](https://github.com/xiawu/secp256r1-node#readme),
   - [ ] [SECP256k1](https://github.com/paulmillr/noble-secp256k1),
@@ -42,3 +41,5 @@
   - [ ] [UDP](https://en.wikipedia.org/wiki/User_Datagram_Protocol)
   - [ ] [TCP](https://en.wikipedia.org/wiki/Transmission_Control_Protocol)
   - [ ] [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security)
+  - [ ] [TOR](https://en.wikipedia.org/wiki/Tor_(network))
+  - [ ] [i2p](https://en.wikipedia.org/wiki/I2P)
