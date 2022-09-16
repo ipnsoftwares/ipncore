@@ -6,7 +6,7 @@
 ---
 
 
-## Supported third layer network protocols
+## Supported network protocols
 - [Websocket (WS/WSS) (INIP0002)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
 ---
 
