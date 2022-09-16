@@ -1,0 +1,11 @@
+<pre>
+  INIP: 15
+  Title: API für Webseiten (Webbbrowser - Bridge)
+  Autor: LeTaylor
+  Comments-Summary: Noch keine Kommentare.
+  Status: Final
+  Type: Standards Track
+  Lizenz: MIT
+  Erstellt: 2022-10-10
+  Konsensus: HardFork / Layer 1 anpassung
+</pre>
