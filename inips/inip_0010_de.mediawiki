@@ -3,7 +3,7 @@
   Title: Einfachs Format für Öffentliche Schlüssel
   Autor: LeTaylor
   Comments-Summary: Noch keine Kommentare.
-  Status: Final
+  Status: Entwicklung
   Type: Standards Track
   Lizenz: MIT
   Erstellt: 2022-10-10
