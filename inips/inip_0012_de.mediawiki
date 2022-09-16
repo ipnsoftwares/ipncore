@@ -1,0 +1,10 @@
+<pre>
+  INIP: 12
+  Title: Bitcoin Unterstützung (Netzwerk, Transkationen, Aktuelle Blockhöhe)
+  Autor: LeTaylor
+  Comments-Summary: Noch keine Kommentare.
+  Status: Final
+  Type: Standards Track
+  Lizenz: MIT
+  Erstellt: 2022-10-10
+</pre>
