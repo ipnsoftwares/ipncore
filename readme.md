@@ -32,10 +32,13 @@
   - [ ] [FROST-Ed25519](https://docs.rs/frost-dalek/latest/frost_dalek/),
   - [ ] Schnorr SECP256k1
   - [X] [ED25519 / Curve25519](https://github.com/paixaop/node-sodium#readme)
-- [ ] APIs:
-  - [ ] Python
+- [ ] API's / Full-Libraries:
   - [ ] Javascript / NodeJS
+  - [ ] Java / Kotlin
+  - [ ] C / C++
+  - [ ] Python
   - [ ] Rust
+  - [ ] C#
 - [ ] Network protocols:
   - [ ] QUIC
   - [ ] UDP
