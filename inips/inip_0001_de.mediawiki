@@ -1,5 +1,5 @@
 <pre>
-  INIP: 10
+  INIP: 1
   Title: Artemis Routing Protkoll (Einfaches Routing Protokoll)
   Autor: LeTaylor
   Comments-Summary: Noch keine Kommentare.
