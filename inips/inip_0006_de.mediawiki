@@ -1,6 +1,6 @@
 <pre>
   INIP: 6
-  Title: PING
+  Title: Layer 2 - PING
   Autor: LeTaylor
   Comments-Summary: Noch keine Kommentare.
   Status: Final
