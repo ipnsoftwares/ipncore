@@ -18,7 +18,7 @@
 
 
 ## To do list
-- [ ] [Power Routing over Distributed hash table DHT](https://en.wikipedia.org/wiki/Distributed_hash_table)
+- [ ] Power Routing over Distributed hash table DHT
 - [ ] Commandline Console for IPN-Core Service
 - [ ] [DNS Node seeding (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
 - [ ] [DDoS Protection (INIP0012)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0012_de.mediawiki)
