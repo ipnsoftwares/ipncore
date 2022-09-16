@@ -9,8 +9,48 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     // Es wird geprüft ob eine Route verfügbar ist
     if(!await routeEP.isUseable()) { return 'unkown_route_for_address'; }
 
+    // Speichert alle Sockets ab
+    let _openSocketList = [];
+
     // Speichert Offene Ping Vorgänge ab
     const _openPingProcesses = new Map();
+
+    // Gibt an ob die Adresse verfügbar ist
+    let _peerIsAvailable = true, _waitTimerForReRsyncRoute = null;
+
+    // Wird verwendet um die Route für die Adresse neu zu Initalisieren
+    const _ATCH_SCANN = () => {
+        // Es wird geprüft ob ein Peer Verfügbar ist, wenn ja wird der Vorgang abgebrochen
+        if(_peerIsAvailable === true) { return; }
+        
+    };
+
+    // Wird ausgeführt wenn keine Peer für diese Adresse verüfgbar ist
+    routeEP.registerEvent('NoAvailableConnections', async () => {
+        // Es wird geprüft ob der Aktuelle Status der Verbindung, verwendetbar ist, wenn nicht wird der vorgang abgebrochen
+        if(_peerIsAvailable === true) {
+            // Das Objekt wird eingeforen
+            _peerIsAvailable = false;
+            console.log('NO_ROUTE_FOR_ADDRESS_AVAILABLE');
+
+            // Alle Sockets werden Pausiert
+            for(const otem of _openSocketList) {}
+
+            // Es wird ein Timer gestartet, dieser Time wird in 5 Sekunden ausgeführt um zu versuchen die Route neu anzufordern
+            _waitTimerForReRsyncRoute = setTimeout(_ATCH_SCANN, 5000);
+        }
+    });
+
+    // Wir ausgeführt sobald ein Peer für diese Verbindung verfügbar ist
+    routeEP.registerEvent('AvailableConnections', async () => {
+        // Es wird geprüft ob bereits ein Peer verfügbar ist, wenn ja wird der Vorgang Ignoriert
+        if(_peerIsAvailable === false) {
+            clearTimeout(_waitTimerForReRsyncRoute);
+            _waitTimerForReRsyncRoute = null;
+            _peerIsAvailable = true;
+            console.log('ROUTE_FOR_ADDRESS_AVAILABLE');
+        }
+    });
 
     // Signiert ein Paket mit dem Lokalen Schlüssel
     const _SIGN_DIGEST_WLSKEY = (pk, digestValue) => {

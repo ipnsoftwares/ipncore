@@ -20,6 +20,9 @@ const routingManager = (signWithNodeKey) => {
     // Speichert alle Routen für IDs ab
     var idToPkey = new Map();
 
+    // Speichert alle EndPoints ab
+    var openEndPoints = new Map();
+
     // Wird verwendet um eine Route hinzuzufügen
     const _addRotute = async (sessionId, publicKey, autoDeleteTime=null) => {
         // Die SessionID wird dem PublicKey zugeordnet
@@ -49,6 +52,12 @@ const routingManager = (signWithNodeKey) => {
 
         // Die Route wurde erfolgreich hinzugefügt
         dprintok(10, ['Address route'], [colors.FgYellow, publicKey], ['has been added to session'], [colors.FgMagenta, sessionId]);
+
+        // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt
+        const addressRawEP = openEndPoints.get(publicKey);
+        if(addressRawEP !== undefined) { addressRawEP.events.onAvailableConnections(); }
+
+        // Die Operation ist abgeschlossen
         return true;
     };
 
@@ -84,6 +93,10 @@ const routingManager = (signWithNodeKey) => {
         const plainBytes = Buffer.from(publicKey, 'hex');
         const firstHash = crypto.createHash('sha256').update(plainBytes).digest();
         publicKeyHashEPs.delete(crypto.createHash('sha256').update(firstHash).digest('hex'));
+
+        // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt
+        const addressRawEP = openEndPoints.get(publicKey);
+        if(addressRawEP !== undefined) { addressRawEP.events.onClosedAllConnections(); }
 
         // Die Route / Routen wurde erfolgreich entfernt
         return true;
@@ -184,21 +197,35 @@ const routingManager = (signWithNodeKey) => {
 
                 // Die Verbindungen werden nach geschwindigkeit gesucht
                 const sortedPerrs = t.sort((a,b) => a.pingTime() - b.pingTime());
+                const fastedPeer = sortedPerrs[0];
 
                 // Die Schnellste Verbindung wird zurückgegeben
-                callbackPeers(null, sortedPerrs[0]);
+                callbackPeers(null, fastedPeer);
             })
             .catch((q) => callbackPeers(q));
         };
 
-        // Das Objekt wird zurückgegeben
-        return {
+        // Wird als Funktionen zurückgegeben
+        const _OBJ_FUNCTIONS = {
+            registerEvent:(eventName, listner) => eventEmitter.on(eventName, listner),
             getFastedEndPoint:(callbackPeers) => _GET_FASTED_PEER(callbackPeers),
             isUseable:() => _ADDRESS_ROUTE_IS_AVAIL(),
             getAllPeers:() => _GET_ALL_PEERS(),
-            registerEvent:eventEmitter.on,
             hasPeers:() => _PEERS_AVAIL() 
-        }
+        };
+
+        // Der Vorgang wird registriert
+        openEndPoints.set(publicKey, {
+            usedPeerPublicKeys:[],
+            obj:_OBJ_FUNCTIONS,
+            events:{
+                onClosedAllConnections:() => eventEmitter.emit('NoAvailableConnections'),
+                onAvailableConnections:() => eventEmitter.emit('AvailableConnections'),
+            } 
+        });
+
+        // Das Objekt wird zurückgegeben
+        return _OBJ_FUNCTIONS;
     };
 
     // Signalisiert das ein Paket von einer bestimmten Adresse Empangen wurde
