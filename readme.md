@@ -21,7 +21,7 @@
 - [ ] Power Routing over Distributed hash table DHT
 - [ ] Commandline Console for IPN-Core Service
 - [ ] [DNS Node seeding (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
-- [ ] [DDoS Protection (INIP0012)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0012_de.mediawiki)
+- [ ] [DDoS Protection (INIP0013)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0013_de.mediawiki)
 - [ ] [Crypto algorithms (INIP0004):](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
   - [ ] [NIST256p](https://github.com/xiawu/secp256r1-node#readme),
   - [ ] [SECP256k1](https://github.com/paulmillr/noble-secp256k1),
