@@ -26,7 +26,6 @@
 - [ ] Tor and I2P support
 - [ ] [Crypto algorithms (INIP0004):](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
   - [ ] NIST256p,
-  - [ ] NIST384p,
   - [ ] NIST521p,
   - [ ] SECP256k1,
   - [ ] [AES256-Bit](https://github.com/brix/crypto-js),
