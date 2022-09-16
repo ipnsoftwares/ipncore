@@ -1,0 +1,10 @@
+<pre>
+  INIP: 3
+  Title: Bootnode Protokoll, ermöglicht das einwählen in das IPN-Netzwerk
+  Autor: LeTaylor
+  Comments-Summary: Noch keine Kommentare.
+  Status: Final
+  Type: Standards Track
+  Lizenz: MIT
+  Erstellt: 2022-10-10
+</pre>
