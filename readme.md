@@ -30,7 +30,6 @@
   - [ ] SECP256k1,
   - [ ] [AES256-Bit](https://github.com/brix/crypto-js),
   - [ ] [FROST-Ed25519](https://docs.rs/frost-dalek/latest/frost_dalek/),
-  - [ ] BRAINPOOLP256r1,
   - [ ] Schnorr SECP256k1
   - [X] [ED25519 / Curve25519](https://github.com/paixaop/node-sodium#readme)
 - [ ] APIs:
