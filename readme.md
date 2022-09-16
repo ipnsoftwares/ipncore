@@ -36,7 +36,7 @@
   - [ ] Rust
   - [ ] C#
 - [ ] Network protocols:
-  - [ ] [Websocket](https://en.wikipedia.org/wiki/WebSocket)
+  - [ ] [Websocket](https://en.wikipedia.org/wiki/WebSocket) | [(INIP0002)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
   - [ ] [QUIC](https://en.wikipedia.org/wiki/QUIC)
   - [ ] [UDP](https://en.wikipedia.org/wiki/User_Datagram_Protocol)
   - [ ] [TCP](https://en.wikipedia.org/wiki/Transmission_Control_Protocol)
