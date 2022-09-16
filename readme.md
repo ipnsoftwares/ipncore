@@ -29,8 +29,8 @@
   - [ ] [FROST-Ed25519](https://docs.rs/frost-dalek/latest/frost_dalek/),
   - [X] [ED25519 / Curve25519](https://github.com/paixaop/node-sodium#readme)
 - [ ] API's / Full-Libraries:
+  - [ ] [Webbrowser - Bridge (INIP0015)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0015_de.mediawiki)
   - [ ] Javascript / NodeJS
-  - [ ] Webbrowser - Bridge
   - [ ] Java / Kotlin
   - [ ] C / C++
   - [ ] Python
