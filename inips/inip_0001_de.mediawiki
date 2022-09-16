@@ -1,1 +1,10 @@
-
+<pre>
+  INIP: 10
+  Title: Artemis Routing Protkoll (Einfaches Routing Protokoll)
+  Autor: LeTaylor
+  Comments-Summary: Noch keine Kommentare.
+  Status: Final
+  Type: Standards Track
+  Lizenz: MIT
+  Erstellt: 2022-10-10
+</pre>
