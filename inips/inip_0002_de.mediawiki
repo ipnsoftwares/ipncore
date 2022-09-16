@@ -1,5 +1,5 @@
 <pre>
-  INIP: w
+  INIP: 2
   Title: IP-Basierte Kommunikation über Websockets
   Autor: LeTaylor
   Comments-Summary: Noch keine Kommentare.
