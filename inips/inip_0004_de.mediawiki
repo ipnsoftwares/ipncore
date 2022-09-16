@@ -1,0 +1,10 @@
+<pre>
+  INIP: 4
+  Title: Kryptographische Standards
+  Autor: LeTaylor
+  Comments-Summary: Noch keine Kommentare.
+  Status: Final
+  Type: Standards Track
+  Lizenz: MIT
+  Erstellt: 2022-10-10
+</pre>
