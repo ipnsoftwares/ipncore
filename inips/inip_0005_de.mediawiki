@@ -1,6 +1,6 @@
 <pre>
   INIP: 5
-  Title: Layer 2 Pakete
+  Title: Layer 1 und Layer 2 Pakete
   Autor: LeTaylor
   Comments-Summary: Noch keine Kommentare.
   Status: Final
