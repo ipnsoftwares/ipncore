@@ -1100,15 +1100,16 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Log Entry
             dprintok(10, ['The address'], [colors.FgMagenta, publicKey], ['is searched in the network.'])
 
+            // Speichert ab wieviele Response Insgesamt Empfangen wurden
+            let recivedResponses = 0;
+
             // Wird aufgerufen wenn die Wartezeit abgelaufen ist
             const TIMEOUT_FNC = () => {
                 // Es wird geprüft ob der Vorgang Geöffnet ist
                 const currentOpenProcess = _openAddressRouteRequestsPack.get(finalProcId);
                 if(currentOpenProcess !== undefined) {
                     // Es wird geprüft ob der Vorgang noch geöffnet ist, wenn ja wird geprüft ob mindestens eine Antwort empfangen wurde
-                    if(currentOpenProcess.operationIsOpen) {
-                        callback(false); 
-                    }
+                    if(currentOpenProcess.operationIsOpen && recivedResponses === 0) { callback(false); }
                 }
 
                 // Die Callback Funktion wird aufgerufen
@@ -1142,9 +1143,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 if(state === true) { currentWaitTimer = setTimeout(TIMEOUT_FNC, timeout); PACKAGE_SEND_EVENT(ep); }
                 else { console.log('ABORTED_NO_PEERS_AVAIL_TO_SEND_ADDRESS_ROUTE_REQUEST'); }
             };
-
-            // Speichert ab wieviele Response Insgesamt Empfangen wurden
-            let recivedResponses = 0;
 
             // Speichert die Funktion ab welche aufgerufen wird wenn eine Antwort eingetrofen ist
             const ENTER_RESOLVED_PACKAGE_OBJ = {
@@ -1209,14 +1207,14 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                         return; 
                     }
 
-                    // Der Recive Response Counter wird hochgezählt
-                    recivedResponses += 1;
-
                     // Es wird geprüft ob die RandSessinID übereinstimmt
                     if(randSessionId !== package.orn) {
                         console.log('INVALID_PACKAGE_SESSION_ID', Buffer.from(finalProcId, 'hex').toString('base64'));
                         return; 
                     }
+
+                    // Der Recive Response Counter wird hochgezählt
+                    recivedResponses += 1;
 
                     // Die Route wird für die Aktuelle Verbindung registriert
                     await _rManager.addRoute(cEpObj.sessionId(), package.addr);
@@ -1234,9 +1232,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                         console.log('SECOND_ROUTE_PACKAGE_REQUESTED');
                         return;
                     }
-
-                    // Debug
-                    dprintok(10, ['The routing process'], [colors.FgCyan, finalProcIdBased], ['was successfully answered after'], [colors.FgMagenta, Date.now() - currentTimestamp, colors.Reset ,' ms from session'], [colors.FgMagenta, cEpObj.sessionId(), colors.Reset, '.']);
+                    else {
+                        dprintok(10, ['The routing process'], [colors.FgCyan, finalProcIdBased], ['was successfully answered after'], [colors.FgMagenta, Date.now() - currentTimestamp, colors.Reset ,' ms from session'], [colors.FgMagenta, cEpObj.sessionId(), colors.Reset, '.']);
+                    }
 
                     // Es wird geprüft ob ein Ping Ausgeführt weden soll nachdem die Route für die Adresse beaknnt ist
                     if(pingProcessAfterAddressFound !== undefined && pingProcessAfterAddressFound !== null) {
