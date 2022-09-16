@@ -1,6 +1,6 @@
 <pre>
   INIP: 13
-  Title: Bitcoin basierter DDoS Schutz / Erweiterung des INIP0001
+  Title: Bitcoin basierter DDoS Schutz / Erweiterung des INIP0001 in kombination mit INIP0012
   Autor: LeTaylor
   Comments-Summary: Noch keine Kommentare.
   Status: Final
