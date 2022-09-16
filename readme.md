@@ -39,7 +39,8 @@
   - [ ] Rust
   - [ ] C#
 - [ ] Network protocols:
-  - [ ] QUIC
-  - [ ] UDP
-  - [ ] TCP
-  - [ ] TLS
+  - [ ] [Websocket](https://en.wikipedia.org/wiki/WebSocket)
+  - [ ] [QUIC](https://en.wikipedia.org/wiki/QUIC)
+  - [ ] [UDP](https://en.wikipedia.org/wiki/User_Datagram_Protocol)
+  - [ ] [TCP](https://en.wikipedia.org/wiki/Transmission_Control_Protocol)
+  - [ ] [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security)
