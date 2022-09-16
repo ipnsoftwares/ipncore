@@ -27,4 +27,5 @@
 - [ ] QUIC-Protocol Support
 - [ ] Second IPN DNS
 - [ ] I2P support
+- [ ] [DDoS Protection (INIP0012)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0012_de.mediawiki)
 - [ ] Python API
