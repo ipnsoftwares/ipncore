@@ -30,6 +30,7 @@
   - [X] [ED25519 / Curve25519](https://github.com/paixaop/node-sodium#readme)
 - [ ] API's / Full-Libraries:
   - [ ] Javascript / NodeJS
+  - [ ] Webbrowser - Bridge
   - [ ] Java / Kotlin
   - [ ] C / C++
   - [ ] Python
