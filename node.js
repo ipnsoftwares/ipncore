@@ -1074,7 +1074,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Wird verwendet um eine Adressroute abzufagen
-    const initAddressRoute = (publicKey, callback=null, maxRecivingResponses=1, timeout=120000, pingProcessAfterAddressFound=null) => {
+    const initAddressRoute = (publicKey, callback=null, maxRecivingResponses=1, timeout=60000, pingProcessAfterAddressFound=null) => {
         // Es wird geprüft ob es sich um die Lokale Adresse handelt, wenn ja wird der Vorgang abgerbrochen!
         if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === publicKey) {
             callback('aborted_is_local_address');

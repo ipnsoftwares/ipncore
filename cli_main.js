@@ -6,7 +6,7 @@ const figlet = require('figlet');
 function main() {
     // Es wird geprüft ob der aktuelle Benutzer Root rechte hat
 
-    // Die SItzung wurde erfolgreich Initalisiert
+    // Die Sitzung wurde erfolgreich Initalisiert
     figlet('IPN', function(err, data) {
         console.log('IPN');
         if (err) { return; }

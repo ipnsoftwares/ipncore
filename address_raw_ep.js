@@ -22,6 +22,9 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     // Speichert Offene Ping Vorgänge ab
     const _openPingProcesses = new Map();
 
+    // Gibt an in welchem Zustand sich das Objekt befindet
+    const _objectState = null;
+
     // Wird verwenet um die Aktuell Verfügbaren Peers abzurufen
     const _FETCH_FASTED_PEERS = (rbackAfterFetch) => {
         routeEP.getAllPeers()
@@ -29,11 +32,11 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             // Es wird geprüft ob es passende EndPunkte gibt
             if(r.length === 0) { rbackAfterFetch(false); return; }
 
-            // Die Sekundären Routen werden entfernt
+            // Es wird geprüft ob alternative Verbindungen vorhanden sind, wenn ja wird der Vorgang abgebrochen, es dürfen keine Peers mehr Vorhanden sein
             secondaryRoutes = [];
 
-            // Es werden Maximal die 3 Schnellsten und Maximal die 2 langsamsten Peers herausgesucht
-            if(r.length > 3) { searchedPeers = r.subarray(0, 3); }
+            // Es werden die 2 Schnellsten Peers herausgesucht
+            if(r.length > 2) { searchedPeers = r.subarray(0, 2); }
             else { searchedPeers = r; }
 
             // Die Pakete werden an die Peers gesendet
@@ -81,7 +84,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
                         dprintok(10, ['Pong packet'], [colors.FgMagenta, pingid], ['received']);
 
                         // Die Verbindung wird hinzugefügt
-                        secondaryRoutes.push({ ep:otem, ping:rtime, ftime:Date.now() });
+                        secondaryRoutes.push({ ep:otem, ping:rtime, ftime:Date.now(), lastSend:Date.now() });
                     }
                 });
             }
@@ -90,7 +93,21 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
     // Wird aller 30 Sekunden als Timer ausgeführt und Aktuallisiert die Verbindungen nach geschwindigkeit
     const _SYNC_ROUTE_PROCESS_TIME = () => {
-        console.log('SYNC');
+        // Alle Verfügbaren Peers werden in einer Liste zusammengefasst
+        let newTempList = [];
+        if(primaryRoute !== null) newTempList.push(primaryRoute);
+        newTempList = newTempList + secondaryRoutes;
+
+        // Es wird geprüft ob ein Peer verfügbar ist
+        if(newTempList.length === 0) return;
+
+        // Es werden alle Peers geprüft wann sie das letztemal
+        for(const peeritem of newTempList) {
+            // Es wird geprüft ob es länger als 30 Sekunden her ist dass ein Paket gesendet oder Empfangen wurde
+            if(peeritem) {
+
+            }
+        }
     };
 
     // Wird ausgeführt wenn keine Peer für diese Adresse verüfgbar ist
