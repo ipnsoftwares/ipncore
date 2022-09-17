@@ -25,7 +25,7 @@ const routingManager = (signWithNodeKey) => {
     var openEndPoints = new Map();
 
     // Wird verwendet um eine Route hinzuzufügen
-    const _addRotute = async (sessionId, publicKey, autoDeleteTime=null) => {
+    const _addRotute = async (sessionId, publicKey, routeScannTime=null, autoDeleteTime=null) => {
         // Die SessionID wird dem PublicKey zugeordnet
         const rRoutesForPublicKey = await pkeyToSessionEP.get(publicKey);
         if(rRoutesForPublicKey !== undefined && rRoutesForPublicKey !== null) {
