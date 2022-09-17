@@ -4,6 +4,10 @@ const consensus = require('./consensus');
 const crypto = require('crypto');
 
 
+// Gibt alle möglichen Statuse an
+const ADR_EP_STATES = {
+
+};
 
 // Stellt einen Address to Adress RAW EndPoint dar
 const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, sourcePrivateKey, destinationPublicKey, crypto_functions, socketConfig, rcb) => {
