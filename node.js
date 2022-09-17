@@ -235,7 +235,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             try {
                 const nodeEPAddResult = await _rManager.addNodeEP(connObj.sessionId(), routingFunctions);
                 if(nodeEPAddResult !== true) { console.log('INVALID_RESULT_FROM_ROUTING_UNIT_BY_ADDING_EP'); callback(false); return; }
-                const addressEP = await _rManager.addRoute(connObj.sessionId(), connObj.getPeerPublicKey());
+                const addressEP = await _rManager.addRoute(connObj.sessionId(), connObj.getPeerPublicKey(), connObj.getPingTime());
                 if(addressEP !== true) { console.log('INVALID_RESULT_FROM_ROUTING_UNIT_BY_ADDING_ADDRESS'); callback(false); return; }
             }
             catch(e) { console.log(e); callback(false); return; }
@@ -1222,7 +1222,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                     }
 
                     // Die Route wird für die Aktuelle Verbindung registriert
-                    await _rManager.addRoute(cEpObj.sessionId(), package.addr);
+                    await _rManager.addRoute(cEpObj.sessionId(), package.addr, Date.now() - currentTimestamp);
 
                     // Der Recive Response Counter wird hochgezählt
                     recivedResponses += 1;
