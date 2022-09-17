@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@noble/secp256k1": "^1.7.0",
     "@stablelib/ed25519": "^1.0.3",
     "@stablelib/sha512": "^1.0.1",
     "base32": "^0.0.6",
