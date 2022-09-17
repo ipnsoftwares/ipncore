@@ -1,4 +1,5 @@
+function main() {
+    console.log("Hello world");
+}
 
-var t = new Map();
-t.set('test', ['abc'])
-console.log(t.get('testx'))
+if (require.main === module) main();

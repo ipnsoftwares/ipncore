@@ -269,7 +269,7 @@ const routingManager = (signWithNodeKey) => {
     };
 
     // Nimmt Pakete entgegen welche versendet werden sollen
-    const _enterOutgoingLayer2Packages = (destination, framePackage, callbackSend) => {
+    const _enterOutgoingLayer2Packages = (destination, framePackage, callbackSend, revalp=1) => {
         // Es wird geprüft ob es sich bei der Empfänger Adresse um eine bekannte Adresse handelt
         const endPointSession = pkeyToSessionEP.get(destination);
         if(endPointSession === undefined) {
@@ -277,9 +277,23 @@ const routingManager = (signWithNodeKey) => {
             return;
         }
 
+        // Es wird geprüft ob mindestens eine EndPointSession vorhanden ist
+        if(endPointSession.length < 1) {
+            // Der Vorgang wird abgebrochen, es ist keine Verbindung verfügbar
+            console.log('DROPED_NO_PEER_AVAILABLE');
+            callbackSend(false);
+            return
+        }
+
         (async() => {
             // Die Daten werden an die erste Verbindung gesendet
             const firstConnection = sessionEndPoints.get(endPointSession[0]);
+
+            // Es wird geprüft ob die Verbindung abgerufen werden konnte
+            if(firstConnection === undefined) {
+                // Es wird versucht den Vorgang zu wiederholen, nachdem dritten Versuch wird der Vorgang abgebrochen
+                return;
+            }
 
             // Das Layer 1 Paket wird gebaut
             const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:framePackage };

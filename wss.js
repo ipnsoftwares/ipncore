@@ -218,6 +218,18 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
             return; 
         }
 
+        // Es wird geprüft ob es sich um eine Zulässige Version handelt
+        if(package_data.version < consensus.sversion) {
+            wsConnObject.close();
+        }
+
+        // Es wird geprüft ob sich das Programm im Main Modus befindet, wenn ja werden alle Tesnet Keys blockiert
+        if(consensus.is_mainnet === true) {
+            if(consensus.main_blocked_public_keys.includes(package_data.pkey)) {
+                wsConnObject.close();
+            }
+        }
+
         // Der Öffentliche Schlüssel wird geschrieben
         switch (package_data.crypto_algo) {
             case "ed25519": _destinationPublicKey = package_data.pkey; break;
