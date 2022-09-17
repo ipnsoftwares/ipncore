@@ -1,4 +1,5 @@
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
+const consensus = require('./consensus');
 const EventEmitter = require('events');
 const crypto = require('crypto');
 
@@ -255,7 +256,7 @@ const routingManager = (signWithNodeKey) => {
             const firstConnection = sessionEndPoints.get(endPointSession[0]);
 
             // Das Layer 1 Paket wird gebaut
-            const prePackage = { crypto_algo:'ed25519', type:'pstr', version:10000000, frame:framePackage };
+            const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:framePackage };
 
             // Das Paket wird Signiert
             const signatedPackage = signWithNodeKey(prePackage);
@@ -281,7 +282,7 @@ const routingManager = (signWithNodeKey) => {
             const firstConnection = sessionEndPoints.get(endPointSession[0]);
 
             // Das Layer 1 Paket wird gebaut
-            const prePackage = { crypto_algo:'ed25519', type:'pstr', version:10000000, frame:framePackage };
+            const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:framePackage };
 
             // Das Paket wird Signiert
             const signatedPackage = signWithNodeKey(prePackage);

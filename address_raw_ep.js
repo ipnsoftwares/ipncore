@@ -1,5 +1,6 @@
 const { dprinterror, dprintok, colors } = require('./debug');
 const { getHashFromDict } = require('./crypto');
+const consensus = require('./consensus');
 const crypto = require('crypto');
 
 
@@ -70,7 +71,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
                         hasReturned = true;
 
                         // Die Primäre Route wird abgespeichert
-                        primaryRoute = { ep:otem, ping:rtime };
+                        primaryRoute = { ep:otem, ping:rtime, ftime:Date.now() };
 
                         // Es wird Signalisiert dass der Vorgang erfolgreich durchgeführt wurde
                         rbackAfterFetch(true);
@@ -80,7 +81,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
                         dprintok(10, ['Pong packet'], [colors.FgMagenta, pingid], ['received']);
 
                         // Die Verbindung wird hinzugefügt
-                        secondaryRoutes.push({ ep:otem, ping:rtime });
+                        secondaryRoutes.push({ ep:otem, ping:rtime, ftime:Date.now() });
                     }
                 });
             }
@@ -169,7 +170,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     // Wird verwendet um ein nicht Signiertes Frame zu Signieren und abzusenden
     const _SEND_COMPLETED_LAYER2_FRAME = (sigantedFrame, socketobj=null, callback=null) => {
         // Das Layer 1 Paket wird gebaut
-        const prePackage = { crypto_algo:'ed25519', type:'pstr', version:10000000, frame:sigantedFrame };
+        const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:sigantedFrame };
 
         // Das Paket wird Signiert
         const signatedPackage = _SIGN_PRE_PACKAGE(prePackage);

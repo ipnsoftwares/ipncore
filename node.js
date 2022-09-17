@@ -3,6 +3,7 @@ const { addressRawEndPoint } = require('./address_raw_ep');
 const { getHashFromDict, eccdsa } = require('./crypto');
 const { routingManager } = require('./routing_man');
 const { wsConnectTo, wsServer } = require('./wss');
+const consensus = require('./consensus');
 const { log } = require('console');
 const crypto = require('crypto');
 const URL = require("url").URL;
@@ -525,7 +526,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     // Sendet ein Routing Response an einen Peer
     const _SEND_ROUTING_RESPONSE = (oneTimeAddressRequest, foundAddress, timeout, connObj, procId, callback) => {
         // Es wird ein OpenRouteResponseSessionPackage gebaut
-        const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:10000000, orn:oneTimeAddressRequest, addr:foundAddress, timeout:timeout };
+        const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:consensus.version, orn:oneTimeAddressRequest, addr:foundAddress, timeout:timeout };
 
         // Aus dem OneTime Value und der Adresse wird ein Hash erstellt
         const decodedProcId = Buffer.from(procId, 'hex');
@@ -784,7 +785,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                         const newPackageTTL = rpackage.timeout - connObjX.getPingTime() - procTTL;
 
                         // Es wird ein OpenRouteSessionPackage gebaut
-                        const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:10000000, orn:rpackage.orn, addr:rpackage.addr, addrsig:rpackage.addrsig, timeout:newPackageTTL };
+                        const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:consensus.version, orn:rpackage.orn, addr:rpackage.addr, addrsig:rpackage.addrsig, timeout:newPackageTTL };
 
                         // Das Paket wird Signiert
                         const signatedPackage = _SIGN_PRE_PACKAGE(openRouteSessionPackage);
@@ -981,7 +982,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             const newPackageTTL = timeout - procTTL;
 
             // Es wird ein OpenRouteSessionPackage gebaut, Consensus(ARTEMIS, INIP001, CLEAR-REQUEST)
-            const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rreq', version:10000000, orn:randSessionId, addrh:addressHash, timeout:newPackageTTL };
+            const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rreq', version:consensus.version, orn:randSessionId, addrh:addressHash, timeout:newPackageTTL };
 
             // Das Paket wird Signiert
             const signatedPackage = _SIGN_PRE_PACKAGE(openRouteSessionPackage);

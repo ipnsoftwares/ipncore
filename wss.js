@@ -1,6 +1,7 @@
 const { getHashFromDict, createRandomSessionId, eccdsa } = require('./crypto');
 const { dprintok, dprinterror, colors } = require('./debug');
 const { WebSocketServer, WebSocket } = require('ws');
+const consensus = require('./consensus');
 const { v4: uuidv4 } = require('uuid');
 
 
@@ -182,7 +183,7 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
     // Wird verwendet um ein HelloPackage an die gegenseite zu senden
     const _SEND_HELLO_PACKAGE_TO_PEER = (callback) => {
         // Das HelloPackage wird gebaut
-        const helloPackage = { version:10000000, type:"regnde", crypto_algo:"ed25519", sfunctions:sfunctions, protf:['prot_full_relay'] };
+        const helloPackage = { version:consensus.version, type:"regnde", crypto_algo:"ed25519", sfunctions:sfunctions, protf:['prot_full_relay'] };
 
         // Der Hash des Dicts wird Signiert
         const cryptoSig = localeNodeObject.signAndReturnPubKeyAndSig(getHashFromDict(helloPackage));
