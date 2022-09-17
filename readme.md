@@ -23,10 +23,10 @@
 - [ ] [DNS Node seeding (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
 - [ ] [DDoS Protection (INIP0013)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0013_de.mediawiki)
 - [ ] [Crypto algorithms (INIP0004):](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
-  - [ ] [SECP256k1](https://github.com/paulmillr/noble-secp256k1),
-  - [ ] [AES256-Bit](https://github.com/brix/crypto-js),
-  - [ ] [FROST-Ed25519](https://docs.rs/frost-dalek/latest/frost_dalek/),
-  - [X] [ED25519 / Curve25519](https://github.com/paixaop/node-sodium#readme)
+  - [X] [ED25519 / Curve25519 (Sodium)](https://github.com/paixaop/node-sodium#readme)
+  - [ ] [FROST-Ed25519](https://docs.rs/frost-dalek/latest/frost_dalek/)
+  - [ ] [SECP256k1](https://github.com/paulmillr/noble-secp256k1)
+  - [ ] [AES256-Bit](https://github.com/brix/crypto-js)
 - [ ] API's / Full-Libraries:
   - [ ] [Webbrowser - Bridge (INIP0015)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0015_de.mediawiki)
   - [ ] Javascript / NodeJS

@@ -55,7 +55,7 @@ const routingManager = (signWithNodeKey) => {
 
         // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt
         const addressRawEP = openEndPoints.get(publicKey);
-        if(addressRawEP !== undefined) { addressRawEP.events.onAvailableConnections(); }
+        if(addressRawEP !== undefined) { addressRawEP.events.onAddNewRoute(publicKey, sessionId); }
 
         // Die Operation ist abgeschlossen
         return true;
@@ -65,12 +65,23 @@ const routingManager = (signWithNodeKey) => {
     const _delRoute = async (publicKey, sessionID=null) => {
         // Es wird nach allen Routen für diesen PublicKey gesucht
         var routesByPublicKey = await pkeyToSessionEP.get(publicKey);
-        if(routesByPublicKey === undefined || routesByPublicKey === null) return false;
+        if(routesByPublicKey === undefined || routesByPublicKey === null){
+            console.log(publicKey, sessionID, 'no');
+            return false;
+        }
+
+        // Entfernt die Zuordnung für diese Adresse
+        const _REMOVE_ADDRESS_ITEM_HASH = () => {
+            // Die Addres zuordnung wird dem PublicKey enzogen
+            const plainBytes = Buffer.from(publicKey, 'hex');
+            const firstHash = crypto.createHash('sha256').update(plainBytes).digest();
+            publicKeyHashEPs.delete(crypto.createHash('sha256').update(firstHash).digest('hex'));
+        }
 
         // Es werden alle Einträge Entfernt welche mit diesem PublicKey in verbindung stehen abgerufen
         for(const oitem of routesByPublicKey) {
             // Sollte eine SessionID angegeben wurden sein, wird geprütft ob es sich um diese handelt
-            if(sessionID !== null) { if(sessionID !== oitem) continue; }
+            if(sessionID !== null) { if(sessionID !== oitem) { continue; } }
 
             // Die ID's zum dem PublicKey wird abgerufen
             const tempIdToPublicKey = idToPkey.get(oitem);
@@ -81,22 +92,19 @@ const routingManager = (signWithNodeKey) => {
             if(filteredArray.length === 0) { idToPkey.delete(oitem); }
             else { idToPkey.set(oitem, filteredArray); }
 
+            // Die Sitzungs wird aus dem Öffentlichen Schlüssel entfernt
+            const pkeyToSessionId = await pkeyToSessionEP.get(publicKey);
+            const filteredPkeyToSessionId = pkeyToSessionId.filter(function(ele){ return ele != oitem; });
+            if(filteredPkeyToSessionId.length === 0) { pkeyToSessionEP.delete(publicKey); _REMOVE_ADDRESS_ITEM_HASH(); }
+
+            // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt
+            const addressRawEP = openEndPoints.get(publicKey);
+            if(addressRawEP !== undefined) { addressRawEP.events.onDeleteRoute(publicKey, oitem); }
+
             // Der Eintrag wurde erfolgreich entfernt
             if(sessionID !== null) dprintok(10, ['Address route'], [colors.FgYellow, publicKey], ['has been deleted from session'], [colors.FgMagenta, sessionID]);
             else dprintok(10, ['Address route'], [colors.FgYellow, publicKey], ['has been deleted']);
         }
-
-        // Der PublicKey eintrag wird aus der Liste entfernt
-        pkeyToSessionEP.delete(publicKey);
-
-        // Die Addres zuordnung wird dem PublicKey enzogen
-        const plainBytes = Buffer.from(publicKey, 'hex');
-        const firstHash = crypto.createHash('sha256').update(plainBytes).digest();
-        publicKeyHashEPs.delete(crypto.createHash('sha256').update(firstHash).digest('hex'));
-
-        // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt
-        const addressRawEP = openEndPoints.get(publicKey);
-        if(addressRawEP !== undefined) { addressRawEP.events.onClosedAllConnections(); }
 
         // Die Route / Routen wurde erfolgreich entfernt
         return true;
@@ -184,31 +192,13 @@ const routingManager = (signWithNodeKey) => {
             if(tsid === undefined) return [];
             var returnValue = [];
             for(const otem of tsid){ returnValue.push(sessionEndPoints.get(otem)); }
-            return returnValue;
-        };
-
-        // Gibt die Schnellsten Peers für die Verbindung aus
-        const _GET_FASTED_PEER = (callbackPeers) => {
-            // Es werden alle Peers abgerufen
-            _GET_ALL_PEERS()
-            .then((t) => {
-                // Es wird geprüft ob eine Verbindung verfügbar ist
-                if(t.length <= 0) { callbackPeers(false); return; };
-
-                // Die Verbindungen werden nach geschwindigkeit gesucht
-                const sortedPerrs = t.sort((a,b) => a.pingTime() - b.pingTime());
-                const fastedPeer = sortedPerrs[0];
-
-                // Die Schnellste Verbindung wird zurückgegeben
-                callbackPeers(null, fastedPeer);
-            })
-            .catch((q) => callbackPeers(q));
+            const sortedPerrs = returnValue.sort((a,b) => a.pingTime() - b.pingTime());
+            return sortedPerrs;
         };
 
         // Wird als Funktionen zurückgegeben
         const _OBJ_FUNCTIONS = {
             registerEvent:(eventName, listner) => eventEmitter.on(eventName, listner),
-            getFastedEndPoint:(callbackPeers) => _GET_FASTED_PEER(callbackPeers),
             isUseable:() => _ADDRESS_ROUTE_IS_AVAIL(),
             getAllPeers:() => _GET_ALL_PEERS(),
             hasPeers:() => _PEERS_AVAIL() 
@@ -219,8 +209,8 @@ const routingManager = (signWithNodeKey) => {
             usedPeerPublicKeys:[],
             obj:_OBJ_FUNCTIONS,
             events:{
-                onClosedAllConnections:() => eventEmitter.emit('NoAvailableConnections'),
-                onAvailableConnections:() => eventEmitter.emit('AvailableConnections'),
+                onDeleteRoute:(pgKey, sessId) => eventEmitter.emit('onDeleteRoute', pgKey, sessId),
+                onAddNewRoute:(pgKey, sessId) => eventEmitter.emit('onAddNewRoute', pgKey, sessId),
             } 
         });
 
@@ -229,9 +219,9 @@ const routingManager = (signWithNodeKey) => {
     };
 
     // Signalisiert das ein Paket von einer bestimmten Adresse Empangen wurde
-    const _signalPackageReciveFromPKey = async (publicKey, frameSize) => {
-        // Es wird geprüft ob die Adresse bekannt ist
-        console.log('RECIVE_INCOMMING_PACKAGE')
+    const _signalPackageReciveFromPKey = async (publicKey, destiPubKey) => {
+        // Debug Log
+        dprintinfo(10, ['Incoming packet from'], [colors.FgYellow, publicKey], ['to'], [colors.FgYellow, destiPubKey], ['was received.']);
     };
 
     // Gibt die Schnellste SessionID für diese Verbindung an, sollte keine Verbindung vorhanden sein wird eine leere liste zurück gegegeben

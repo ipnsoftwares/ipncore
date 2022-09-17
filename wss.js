@@ -1,4 +1,4 @@
-const { getHashFromDict, createRandomSessionId } = require('./crypto');
+const { getHashFromDict, createRandomSessionId, eccdsa } = require('./crypto');
 const { dprintok, dprinterror, colors } = require('./debug');
 const { WebSocketServer, WebSocket } = require('ws');
 const { v4: uuidv4 } = require('uuid');

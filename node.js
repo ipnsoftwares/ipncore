@@ -1,8 +1,8 @@
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { addressRawEndPoint } = require('./address_raw_ep');
+const { getHashFromDict, eccdsa } = require('./crypto');
 const { routingManager } = require('./routing_man');
 const { wsConnectTo, wsServer } = require('./wss');
-const { getHashFromDict } = require('./crypto');
 const { log } = require('console');
 const crypto = require('crypto');
 const URL = require("url").URL;
@@ -509,7 +509,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 // Das Paket wird Lokal weiter verarbeitet
                 _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState=true) => {
                     // Der Routing Manager wird Signalisiert das ein Paket emfpangen wurde
-                    _rManager.signalPackageReciveFromPKey(package.frame.source, 0)
+                    _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination)
                     .then((signalResult) => {
                         // Es wird geprüft ob der Signaling Prozess erfolgreich war
                     })
@@ -557,6 +557,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
         // Speichert die Aktuelle Startzeit des Prozzeses ab
         const processStartingTime = Date.now();
+
+        // Gibt an, wieviele Antworten Maximal erlaubt sind
+        const maxRequestesForCurrentPorcessAllowed = 3;
 
         // Es wird geprüft ob es sich um eine Anfrage oder eine Antwort handelt
         if(package.type === 'rreq') {
@@ -619,8 +622,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                     }
 
                     // Es wird geprüft ob bereits 3 Pakete beantwortet wurden, wenn ja wird der Vorgang abgebrochen
-                    if(totalPeersRecived >= 3) {
-                        console.log('PACKAGE_DROPED_TO_ALWAYS_THREE_RESPONSES_SEND');
+                    if(totalPeersRecived >= maxRequestesForCurrentPorcessAllowed) {
+                        dprinterror(10, ['Routing request process packet'], [colors.FgMagenta, basedReqProcId], ['was discarded, the process has already been answered.']);
                         return;
                     }
 
@@ -1109,14 +1112,19 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 const currentOpenProcess = _openAddressRouteRequestsPack.get(finalProcId);
                 if(currentOpenProcess !== undefined) {
                     // Es wird geprüft ob der Vorgang noch geöffnet ist, wenn ja wird geprüft ob mindestens eine Antwort empfangen wurde
-                    if(currentOpenProcess.operationIsOpen && recivedResponses === 0) { callback(false); }
-                }
+                    if(currentOpenProcess.operationIsOpen && recivedResponses === 0) {
+                        dprinterror(10, ['Routing request process'], [colors.FgCyan, finalProcIdBased], ['was closed without a response.']);
+                        callback(false);
+                    }
+                    else {
+                        dprintinfo(10, ['Routing request process'], [colors.FgCyan, finalProcIdBased], ['was closed with'], [colors.FgYellow, recivedResponses], ['reponses.']);
+                    }
 
-                // Die Callback Funktion wird aufgerufen
-                dprintinfo(10, ['Routing request process'], [colors.FgCyan, finalProcIdBased], ['was closed.']);
-                _openAddressRouteRequestsPack.delete(finalProcId);
-                clearTimeout(currentWaitTimer);
-                currentWaitTimer = null;
+                    // Der Vorgang wird geschlossen und der Timer wird gelöscht
+                    _openAddressRouteRequestsPack.delete(finalProcId);
+                    clearTimeout(currentWaitTimer);
+                    currentWaitTimer = null;
+                }
             };
 
             // Wird verwenet wenn ein Paket versendet wurde
@@ -1133,7 +1141,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
                     // Wenn kein Passender Eintrag gefunden wurde, wird ein neuer Hinzugefügt
                     tempObj.peers.push({ send:true, recive:false, sendResponse:false, sendRequest:true, reciveRequest:false, reciveResponse:false, first:false, ep:ep, entryAddTimestamp:Date.now() });
-                    console.log('SEND_ADDRESS_ROUTE_REQUEST_TO', ep.sessionId(), finalProcId);
                     _openAddressRouteRequestsPack.set(finalProcId, tempObj);
                 }
             };
@@ -1213,48 +1220,28 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                         return; 
                     }
 
-                    // Der Recive Response Counter wird hochgezählt
-                    recivedResponses += 1;
-
                     // Die Route wird für die Aktuelle Verbindung registriert
                     await _rManager.addRoute(cEpObj.sessionId(), package.addr);
 
+                    // Der Recive Response Counter wird hochgezählt
+                    recivedResponses += 1;
+
+                    // Debug
+                    dprintok(10, ['Response'], [colors.FgYellow, recivedResponses, colors.Reset, '/', colors.FgYellow, maxRecivingResponses], ['for routing process'], [colors.FgCyan, finalProcIdBased], ['after'], [colors.FgMagenta, Date.now() - currentTimestamp], ['ms received via session'], [colors.FgMagenta, cEpObj.sessionId()]);
+
                     // Es wird geprüft ob die Maximale Anzhal der geforderten Antworten eingetroffen ist
                     if(recivedResponses >= maxRecivingResponses && ENTER_RESOLVED_PACKAGE_OBJ.operationIsOpen === true) {
+                        dprintinfo(10, ['The routing process'], [colors.FgMagenta, cEpObj.sessionId()], ['was completed after'], [colors.FgMagenta, Date.now() - currentTimestamp], ['ms, further packets are discarded.']);
                         const updatedProcValue = Object.assign(totalEndPoints, { operationIsOpen:false, procClosed:Date.now() });
                         _openAddressRouteRequestsPack.set(finalProcId, updatedProcValue);
                         ENTER_RESOLVED_PACKAGE_OBJ.operationIsOpen = false;
-                        console.log('CLOSED_SET');
                     }
 
-                    // Es wird geprüft ob es sich um eine weitere Antwort für dieses Paket handelt, wenn ja ist der Vorgang hier zuende
-                    if(recivedResponses > 1) {
-                        console.log('SECOND_ROUTE_PACKAGE_REQUESTED');
-                        return;
-                    }
-                    else {
-                        dprintok(10, ['The routing process'], [colors.FgCyan, finalProcIdBased], ['was successfully answered after'], [colors.FgMagenta, Date.now() - currentTimestamp, colors.Reset ,' ms from session'], [colors.FgMagenta, cEpObj.sessionId(), colors.Reset, '.']);
-                    }
+                    // Es wird geprüft ob der Vorgang erfolgreich fertigestellt wurde
+                    if(recivedResponses > 1) return; 
 
-                    // Es wird geprüft ob ein Ping Ausgeführt weden soll nachdem die Route für die Adresse beaknnt ist
-                    if(pingProcessAfterAddressFound !== undefined && pingProcessAfterAddressFound !== null) {
-                        // Es wird ein Ping Paket mit 512 Bytes an die Adresse gesendet und auf eine Antwort gewartet
-                        pingIpnAddress(publicKey, 512, (state) => {
-                            // Es wird geprüft ob ein Antwortpaket empfangen wurde
-                            if(state !== true) {
-                                // Der Vorgang wurde ohne eine Antwort abeschlossen
-                                if(callback !== null) callback(false);
-                            }
-                            else {
-                                // Der Vorgang wurde erfolgreich durchgeführt
-                                if(callback !== null) callback(true);
-                            }
-                        });
-                    }
-                    else {
-                        // Die Route für die Adresse wurde erfolgreich Initalisiert
-                        if(callback !== null) callback(true);
-                    }
+                    // Die Route für die Adresse wurde erfolgreich Initalisiert
+                    if(callback !== null) callback(true);
                 }
             };
 
