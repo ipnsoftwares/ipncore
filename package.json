@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "base32": "^0.0.6",
+    "base58-js": "^1.0.4",
     "bech32": "^2.0.0",
     "cbor": "^8.1.0",
     "js-sha3": "^0.8.0",

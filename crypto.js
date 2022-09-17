@@ -1,7 +1,6 @@
-const secp256k1 = require('@noble/secp256k1');
+const { binary_to_base58 } = require('base58-js');
 const _sodium = require('libsodium-wrappers');
 const crypto = require('crypto');
-const base32 = require('base32');
 const cbor = require('cbor');
 
 
@@ -12,22 +11,9 @@ const getHashFromDict = (jsonDict) => {
     return hash;
 }
 
-// Wandelt einen HEX-PublicKey in eine Bech32m Adresse um
-const convertHexPublicKeyToBech32m = (publicKey) => {
-    console.log()
-    console.log('XXXXX', Buffer.from(publicKey,))
-    console.log()
-    return `ipn${Buffer.from(publicKey).toString('hex')}`
-};
-
-// Wandelt eine Bech32m Adresse in einen Öffentlichen Schlüssel um
-const convertBech32mAddressToPKey = (bech32Address) => {
-    return Buffer.from(bech32Address.substring(3), 'hex');
-};
-
 // Erstellt eine Zufällige SessionID ab
 const createRandomSessionId = () => {
-    return base32.encode(crypto.randomBytes(14)).toUpperCase();
+    return binary_to_base58(crypto.randomBytes(14)).toUpperCase();
 };
 
 // Speichert alle verfügbaren Verfahren ein
@@ -108,8 +94,6 @@ module.exports = {
     initCrypto:init_crypto,
     getHashFromDict:getHashFromDict,
     createRandomSessionId:createRandomSessionId,
-    convertHexPublicKeyToBech32m:convertHexPublicKeyToBech32m,
-    convertBech32mAddressToPKey:convertBech32mAddressToPKey,
     eccdsa:{
         crypto_algo:CRYPTO_ALGO,
         crypto_sign_seed_keypair:crypto_sign_seed_keypair,
