@@ -235,7 +235,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             try {
                 const nodeEPAddResult = await _rManager.addNodeEP(connObj.sessionId(), routingFunctions);
                 if(nodeEPAddResult !== true) { console.log('INVALID_RESULT_FROM_ROUTING_UNIT_BY_ADDING_EP'); callback(false); return; }
-                const addressEP = await _rManager.addRoute(connObj.sessionId(), connObj.getPeerPublicKey());
+                const addressEP = await _rManager.addRoute(connObj.sessionId(), connObj.getPeerPublicKey(), connObj.getPingTime());
                 if(addressEP !== true) { console.log('INVALID_RESULT_FROM_ROUTING_UNIT_BY_ADDING_ADDRESS'); callback(false); return; }
             }
             catch(e) { console.log(e); callback(false); return; }
@@ -505,15 +505,14 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             _rManager.hasRoutes(package.frame.source, connObj.sessionId())
             .then(async (r) => {
                 // Sollte die Route nicht bekannt sein, so wird sie dem Routing Manager hinzugefügt
-                if(!r) { await _rManager.addRoute(connObj.sessionId(), package.frame.source); }
+                if(!r) { await _rManager.addRoute(connObj.sessionId(), package.frame.source, null, 1200000); }
+
+                // Der Routing Manager wird Signalisiert das ein Paket emfpangen wurde
+                await _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination);
 
                 // Das Paket wird Lokal weiter verarbeitet
                 _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState=true) => {
-                    // Der Routing Manager wird Signalisiert das ein Paket emfpangen wurde
-                    _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination)
-                    .then((signalResult) => {
-                        // Es wird geprüft ob der Signaling Prozess erfolgreich war
-                    })
+                        
                 });
             })
         }
@@ -1074,7 +1073,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Wird verwendet um eine Adressroute abzufagen
-    const initAddressRoute = (publicKey, callback=null, maxRecivingResponses=1, timeout=60000, pingProcessAfterAddressFound=null) => {
+    const initAddressRoute = (publicKey, callback=null, maxRecivingResponses=1, timeout=60000) => {
         // Es wird geprüft ob es sich um die Lokale Adresse handelt, wenn ja wird der Vorgang abgerbrochen!
         if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === publicKey) {
             callback('aborted_is_local_address');
@@ -1106,6 +1105,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
             // Speichert ab wieviele Response Insgesamt Empfangen wurden
             let recivedResponses = 0;
+
+            // Speichert ab wann das erste Paket versendet wurde
+            let firstPackageTime = null;
 
             // Wird aufgerufen wenn die Wartezeit abgelaufen ist
             const TIMEOUT_FNC = () => {
@@ -1148,7 +1150,11 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
             // Wird verwedet wenn das erste Paket versendet wurde
             const FIRST_PACKAGE_SEND_EVENT = (state, ep) => {
-                if(state === true) { currentWaitTimer = setTimeout(TIMEOUT_FNC, timeout); PACKAGE_SEND_EVENT(ep); }
+                if(state === true) {
+                    currentWaitTimer = setTimeout(TIMEOUT_FNC, timeout);
+                    firstPackageTime = Date.now();
+                    PACKAGE_SEND_EVENT(ep); 
+                }
                 else { console.log('ABORTED_NO_PEERS_AVAIL_TO_SEND_ADDRESS_ROUTE_REQUEST'); }
             };
 
@@ -1222,7 +1228,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                     }
 
                     // Die Route wird für die Aktuelle Verbindung registriert
-                    await _rManager.addRoute(cEpObj.sessionId(), package.addr);
+                    await _rManager.addRoute(cEpObj.sessionId(), package.addr, Date.now() - firstPackageTime, 1200000);
 
                     // Der Recive Response Counter wird hochgezählt
                     recivedResponses += 1;

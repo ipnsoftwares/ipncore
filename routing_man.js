@@ -1,7 +1,9 @@
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
+const { getHashFromDict } = require('./crypto');
 const consensus = require('./consensus');
 const EventEmitter = require('events');
 const crypto = require('crypto');
+
 
 
 // Routing Manager
@@ -24,8 +26,23 @@ const routingManager = (signWithNodeKey) => {
     // Speichert alle EndPoints ab
     var openEndPoints = new Map();
 
+    // Speichert ab, wann eine Adresse wegen nicht Nutzung gelöscht werden soll
+    var deleteAddressRoute = new Map();
+
+    // Speichert ab, wann der Eintrag hinzugefügt wurde
+    var addressSessionAddedTime = new Map();
+
+    // Speichert ab, wielange es bei der Adresse gedauert hat bis sie auf ein Routing Request geantwortet hat
+    var addressRRequestTime = new Map();
+
+    // Speichert ab wann das letztemal ein Paket von der Adresse XYZ Empfangen wurde
+    var lastPackageRecivedFromAddress = new Map();
+
     // Wird verwendet um eine Route hinzuzufügen
-    const _addRotute = async (sessionId, publicKey, autoDeleteTime=null) => {
+    const _addRotute = async (sessionId, publicKey, routeInitTime, autoDeleteTime=null) => {
+        // Es wird ein Zeitstempel für den Vorgang erzeugt
+        const processTimestamp = Date.now();
+
         // Die SessionID wird dem PublicKey zugeordnet
         const rRoutesForPublicKey = await pkeyToSessionEP.get(publicKey);
         if(rRoutesForPublicKey !== undefined && rRoutesForPublicKey !== null) {
@@ -57,6 +74,42 @@ const routingManager = (signWithNodeKey) => {
         // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt
         const addressRawEP = openEndPoints.get(publicKey);
         if(addressRawEP !== undefined) { addressRawEP.events.onAddNewRoute(publicKey, sessionId); }
+
+        // Es wird geprüft ob ein autoDeleteTime eintrag vorhanden ist
+        if(autoDeleteTime !== null) {
+            // Es wird geprüft ob der Eintrag bereits bekannt ist
+            if(await deleteAddressRoute.get(publicKey) !== undefined) {
+                await deleteAddressRoute.get(publicKey).set(sessionId, autoDeleteTime); 
+            }
+            else {
+                // Der Eintrag wird hinzugefügt
+                const newEntry = new Map();
+                newEntry.set(sessionId, autoDeleteTime);
+                deleteAddressRoute.set(publicKey, newEntry);
+            }
+        }
+
+        // Es wird geprüft ob eine Route Init Time angegeben wurde
+        if(routeInitTime !== undefined && routeInitTime !== null) {
+            // Es wird geprüft ob der Eintrag bereits bekannt ist
+            if(await addressRRequestTime.get(publicKey) !== undefined) {
+                await addressRRequestTime.get(publicKey).set(sessionId, autoDeleteTime); 
+            }
+            else {
+                // Der Eintrag wird hinzugefügt
+                const newEntry = new Map();
+                newEntry.set(sessionId, autoDeleteTime);
+                addressRRequestTime.set(publicKey, newEntry);
+            }
+        }
+
+        // Die Zeit wann der Eintrag der Cache hinzugefügt wurde, wird hinzugefügt
+        if(await addressSessionAddedTime.get(publicKey) !== undefined) { await addressSessionAddedTime.get(publicKey).set(sessionId, processTimestamp); }
+        else {
+            const newEntry = new Map();
+            newEntry.set(sessionId, processTimestamp);
+            addressSessionAddedTime.set(publicKey, newEntry);
+        }
 
         // Die Operation ist abgeschlossen
         return true;
@@ -95,16 +148,42 @@ const routingManager = (signWithNodeKey) => {
 
             // Die Sitzungs wird aus dem Öffentlichen Schlüssel entfernt
             const pkeyToSessionId = await pkeyToSessionEP.get(publicKey);
-            const filteredPkeyToSessionId = pkeyToSessionId.filter(function(ele){ return ele != oitem; });
-            if(filteredPkeyToSessionId.length === 0) { pkeyToSessionEP.delete(publicKey); _REMOVE_ADDRESS_ITEM_HASH(); }
+            pkeyToSessionEP.set(publicKey, pkeyToSessionId.filter(function(ele){ return ele != oitem; }));
+            if(await pkeyToSessionEP.get(publicKey).length === 0) { pkeyToSessionEP.delete(publicKey); _REMOVE_ADDRESS_ITEM_HASH(); }
+
+            // Debug Eintrag
+            dprintok(10, ['Address route'], [colors.FgYellow, publicKey], ['has been deleted from session'], [colors.FgMagenta, oitem]);
+
+            // Es wird geprüft ob es einen Eintrag für AutoDeleting gibt
+            if(await deleteAddressRoute.get(publicKey) !== undefined) {
+                // Es wird geprüft ob es für diese Sitzung einen eintrag gibt
+                if(await deleteAddressRoute.get(publicKey).get(oitem) !== undefined) {
+                    await deleteAddressRoute.get(publicKey).delete(oitem);
+                    if(Array.from(deleteAddressRoute.get(publicKey).keys()).length === 0) deleteAddressRoute.delete(publicKey);
+                }
+            }
+
+            // Der Eintrag wielange der Routing Vorgang gedauert hat, wird gelöscht
+            if(await addressRRequestTime.get(publicKey) !== undefined) {
+                // Es wird geprüft ob es für diese Sitzung einen eintrag gibt
+                if(await addressRRequestTime.get(publicKey).get(oitem) !== undefined) {
+                    await addressRRequestTime.get(publicKey).delete(oitem);
+                    if(Array.from(addressRRequestTime.get(publicKey).keys()).length === 0) addressRRequestTime.delete(publicKey);
+                }
+            }
+
+            // Die Zeit wann der Eintrag hinzugefügt wurde, wird entfernt
+            if(await addressSessionAddedTime.get(publicKey) !== undefined) {
+                // Es wird geprüft ob es für diese Sitzung einen eintrag gibt
+                if(await addressSessionAddedTime.get(publicKey).get(oitem) !== undefined) {
+                    await addressSessionAddedTime.get(publicKey).delete(oitem);
+                    if(Array.from(addressSessionAddedTime.get(publicKey).keys()).length === 0) addressSessionAddedTime.delete(publicKey);
+                }
+            }
 
             // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt
-            const addressRawEP = openEndPoints.get(publicKey);
+            const addressRawEP = await openEndPoints.get(publicKey);
             if(addressRawEP !== undefined) { addressRawEP.events.onDeleteRoute(publicKey, oitem); }
-
-            // Der Eintrag wurde erfolgreich entfernt
-            if(sessionID !== null) dprintok(10, ['Address route'], [colors.FgYellow, publicKey], ['has been deleted from session'], [colors.FgMagenta, sessionID]);
-            else dprintok(10, ['Address route'], [colors.FgYellow, publicKey], ['has been deleted']);
         }
 
         // Die Route / Routen wurde erfolgreich entfernt
@@ -220,9 +299,15 @@ const routingManager = (signWithNodeKey) => {
     };
 
     // Signalisiert das ein Paket von einer bestimmten Adresse Empangen wurde
-    const _signalPackageReciveFromPKey = async (publicKey, destiPubKey) => {
+    const _signalPackageReciveFromPKey = async (publicKey, destiPubKey, timestamp=Date.now()) => {
         // Debug Log
         dprintinfo(10, ['Incoming packet from'], [colors.FgYellow, publicKey], ['to'], [colors.FgYellow, destiPubKey], ['was received.']);
+
+        // Dem Cache wird Siganlisiert wann zuletzt ein Paket empfangen wurde
+        lastPackageRecivedFromAddress.set(publicKey, timestamp);
+
+        // Der Vorgang wurde erfolgreich durchgeführt
+        return true;
     };
 
     // Gibt die Schnellste SessionID für diese Verbindung an, sollte keine Verbindung vorhanden sein wird eine leere liste zurück gegegeben
@@ -242,13 +327,11 @@ const routingManager = (signWithNodeKey) => {
             return;
         }
 
-        (async() => {
-            // Es wird geprüft ob die Absender Adresse bekannt ist
-            if(pkeyToSessionEP.get(source) === undefined) { await _addRotute(connObj.sessionId(), source); }
+        // Speichert die Zeit ab, wann das Paket empfangen wurde
+        const packageInTime = Date.now();
 
-            // Es wird Signalisiert das der Vorgang erfolgreich abgeschlossen wurde
-            await _signalPackageReciveFromPKey(source, 0);
-
+        // Synchroner Codebereich, wird zum versenden des Paketes verwendet
+        const _SYNC_STEP = () => {
             // Speichert ab, wann der PublicKey zuletzt ein Paket empfangen hat
             publicKeyLastRecivedSendPackageTime.set(source, Date.now());
 
@@ -261,11 +344,26 @@ const routingManager = (signWithNodeKey) => {
             // Das Paket wird Signiert
             const signatedPackage = signWithNodeKey(prePackage);
 
+            // Seichert die Aktuelle Uhrzeit ab
+            const cts = Date.now();
+
             // Das Paket wird versendet
             firstConnection.enterPackage(signatedPackage, () => {
-                console.log('PACKAGE_FORWARED_TO', destination, endPointSession[0]);
+                dprintinfo(10, ['Packet'], [colors.FgRed, getHashFromDict(framePackage).toString('base64')], ['was successfully forwarded from'], [colors.FgMagenta, connObj.sessionId()], ['to'], [colors.FgMagenta, firstConnection.sessionId], ['in'], [colors.FgYellow, Date.now() - cts, colors.Reset, ' ms.'])
             })
-        })();
+        };
+
+        // Dem Cache wird Signalisiert dass Soebend ein Paket von dieser Adresse Empfangen wurde
+        _signalPackageReciveFromPKey(source, destination, packageInTime)
+        .then(async () => {
+            // Es wird geprüft ob die Absender Adresse bekannt ist
+            if(pkeyToSessionEP.get(source) === undefined) {
+                await _addRotute(connObj.sessionId(), source); 
+            }
+
+            // Next
+            _SYNC_STEP();
+        })
     };
 
     // Nimmt Pakete entgegen welche versendet werden sollen
@@ -291,6 +389,7 @@ const routingManager = (signWithNodeKey) => {
 
             // Es wird geprüft ob die Verbindung abgerufen werden konnte
             if(firstConnection === undefined) {
+                console.log('NO_CONNECTION');
                 // Es wird versucht den Vorgang zu wiederholen, nachdem dritten Versuch wird der Vorgang abgebrochen
                 return;
             }
@@ -313,14 +412,21 @@ const routingManager = (signWithNodeKey) => {
 
     // Wird von einem Timer ausgeführt und überwacht alle Routen, Routen welche länger als 2 Minuten nicht verwendet wurden, werden entfernt sofern es sich nicht um Peer Root Adressen handelt
     const _ROUTING_MAN_THR_TIMER = async () => {
-        // Es werden alle Adress basierten Routen abgerufen, es wird geprüft wann diese Adresse das letzemal ein Paket erhalten hat
+        // Es werden alle Adressen abgerufen welche eine Ablaufzeit besitzen
+        const cobjKeys = deleteAddressRoute.keys();
+
+        // Die Einzelnen Schlüssel werden abgerufen
+        let retrValues = [];
+        for(const otem of cobjKeys) {
+
+        }
 
         // Der Time wird neugestartet
-        setTimeout(_ROUTING_MAN_THR_TIMER, 1);
+        setTimeout(_ROUTING_MAN_THR_TIMER, 10);
     };
 
     // Der Routing Timer wird gestartet
-    setTimeout(_ROUTING_MAN_THR_TIMER, 1);
+    setTimeout(_ROUTING_MAN_THR_TIMER, 10);
 
     // Das Routing Manager Objekt wird zurückgegeben
     return {

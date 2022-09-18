@@ -15,3 +15,12 @@ if (require.main === module) () => {
 else {
     // Es handelt sich um eine Library
 }
+
+
+
+var test = new Map();
+test.set('a', new Map());
+
+console.log(test.get('a').get('b'))
+test.get('a').set('b', 320);
+console.log(test.get('a').get('b'))

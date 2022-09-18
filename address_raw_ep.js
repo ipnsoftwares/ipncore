@@ -117,22 +117,24 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     // Wird ausgeführt wenn keine Peer für diese Adresse verüfgbar ist
     routeEP.registerEvent('onDeleteRoute', async (addrPublicKey, deletedSessionId) => {
         // Es wird geprüft um welceh Sitzung es sich handelt
-        if(primaryRoute.ep.sessionId === deletedSessionId) {
-            // Debug Log
-            dprintok(10, ['Session'], [colors.FgMagenta, primaryRoute.ep.sessionId], ['has been removed as the primary route from end point'], [colors.FgYellow, addrPublicKey, colors.Reset, '.']);
-
-            // Sollte eine Alternative Route vorhanden sein, wird die Primäre Route durch die alternativen Route ersetzt, sollte keine Route vorhanden sein, wird ein Routing Request gestartet
-            if(secondaryRoutes.length > 0) {
-                // Die Primäre Route wird durch die erste Sekundäre Route ersetzt
-                const retrivedEp = secondaryRoutes.pop();
-                dprintok(10, ['The Primary Route'], [colors.FgMagenta, primaryRoute.ep.sessionId], ['has been replaced by the Secondary Route'], [colors.FgMagenta, retrivedEp.ep.sessionId, colors.Reset, '.']);
-                primaryRoute = retrivedEp;
-            }
-            else {
-                // Die Primäre Route wird entfernt
-                dprinterror(10, ['There is no longer a route for the endpoint'], [colors.FgYellow, addrPublicKey, colors.Reset, ', all sockets are frozed.']);
-                if(syncRouteTimer !== null) clearTimeout(syncRouteTimer);
-                primaryRoute = null;
+        if(primaryRoute !== null) {
+            if(primaryRoute.ep.sessionId === deletedSessionId) {
+                // Debug Log
+                dprintok(10, ['Session'], [colors.FgMagenta, primaryRoute.ep.sessionId], ['has been removed as the primary route from end point'], [colors.FgYellow, addrPublicKey, colors.Reset, '.']);
+    
+                // Sollte eine Alternative Route vorhanden sein, wird die Primäre Route durch die alternativen Route ersetzt, sollte keine Route vorhanden sein, wird ein Routing Request gestartet
+                if(secondaryRoutes.length > 0) {
+                    // Die Primäre Route wird durch die erste Sekundäre Route ersetzt
+                    const retrivedEp = secondaryRoutes.pop();
+                    dprintok(10, ['The Primary Route'], [colors.FgMagenta, primaryRoute.ep.sessionId], ['has been replaced by the Secondary Route'], [colors.FgMagenta, retrivedEp.ep.sessionId, colors.Reset, '.']);
+                    primaryRoute = retrivedEp;
+                }
+                else {
+                    // Die Primäre Route wird entfernt
+                    dprinterror(10, ['There is no longer a route for the endpoint'], [colors.FgYellow, addrPublicKey, colors.Reset, ', all sockets are frozed.']);
+                    if(syncRouteTimer !== null) clearTimeout(syncRouteTimer);
+                    primaryRoute = null;
+                }
             }
         }
         else {
