@@ -299,12 +299,17 @@ const routingManager = (signWithNodeKey) => {
     };
 
     // Signalisiert das ein Paket von einer bestimmten Adresse Empangen wurde
-    const _signalPackageReciveFromPKey = async (publicKey, destiPubKey, timestamp=Date.now()) => {
+    const _signalPackageReciveFromPKey = async (publicKey, destiPubKey, connObj, timestamp=Date.now()) => {
         // Debug Log
         dprintinfo(10, ['Incoming packet from'], [colors.FgYellow, publicKey], ['to'], [colors.FgYellow, destiPubKey], ['was received.']);
 
         // Dem Cache wird Siganlisiert wann zuletzt ein Paket empfangen wurde
-        lastPackageRecivedFromAddress.set(publicKey, timestamp);
+        if(await lastPackageRecivedFromAddress.get(publicKey) !== undefined) { await lastPackageRecivedFromAddress.get(publicKey).set(connObj.sessionId(), timestamp); }
+        else {
+            const newEntry = new Map();
+            newEntry.set(connObj.sessionId(), timestamp);
+            lastPackageRecivedFromAddress.set(publicKey, newEntry);
+        }
 
         // Der Vorgang wurde erfolgreich durchgeführt
         return true;
@@ -354,7 +359,7 @@ const routingManager = (signWithNodeKey) => {
         };
 
         // Dem Cache wird Signalisiert dass Soebend ein Paket von dieser Adresse Empfangen wurde
-        _signalPackageReciveFromPKey(source, destination, packageInTime)
+        _signalPackageReciveFromPKey(source, destination, connObj, packageInTime)
         .then(async () => {
             // Es wird geprüft ob die Absender Adresse bekannt ist
             if(pkeyToSessionEP.get(source) === undefined) {
@@ -415,10 +420,31 @@ const routingManager = (signWithNodeKey) => {
         // Es werden alle Adressen abgerufen welche eine Ablaufzeit besitzen
         const cobjKeys = deleteAddressRoute.keys();
 
+        // Die Aktuelle Zeit wird ermittelt
+        const ctstamp = Date.now();
+
         // Die Einzelnen Schlüssel werden abgerufen
         let retrValues = [];
         for(const otem of cobjKeys) {
+            // Es werden alle Sitzungen für diese Adresse abgerufen
+            const tempSessions = await deleteAddressRoute.get(otem);
+            if(tempSessions === undefined) continue;
 
+            // Die Einzelnen Sitzungen werden abgearbeitet
+            for(const xtem of tempSessions.keys()) {
+                // Es wird ermittelt wielange der Eintrag im Cache ohne Antwort leben darf
+                const tmpsobj = await tempSessions.get(xtem);
+                if(tmpsobj === undefined) continue;
+
+                // Es wird ermittelt wann der Eintrag hinzugefügt wurde
+                const addedValue = await addressSessionAddedTime.get(otem);
+                if(addedValue === undefined) continue;
+                const currentSessionValue = await addedValue.get(xtem);
+                if(currentSessionValue === undefined) continue;
+                if(ctstamp - currentSessionValue >= tmpsobj) {
+                    // Es wird geprüft ob ein Paket Empfangen wurde
+                }
+            }
         }
 
         // Der Time wird neugestartet

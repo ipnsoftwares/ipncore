@@ -116,12 +116,13 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
     // Wird ausgeführt wenn keine Peer für diese Adresse verüfgbar ist
     routeEP.registerEvent('onDeleteRoute', async (addrPublicKey, deletedSessionId) => {
+        console.log('DELE')
         // Es wird geprüft um welceh Sitzung es sich handelt
         if(primaryRoute !== null) {
             if(primaryRoute.ep.sessionId === deletedSessionId) {
                 // Debug Log
                 dprintok(10, ['Session'], [colors.FgMagenta, primaryRoute.ep.sessionId], ['has been removed as the primary route from end point'], [colors.FgYellow, addrPublicKey, colors.Reset, '.']);
-    
+
                 // Sollte eine Alternative Route vorhanden sein, wird die Primäre Route durch die alternativen Route ersetzt, sollte keine Route vorhanden sein, wird ein Routing Request gestartet
                 if(secondaryRoutes.length > 0) {
                     // Die Primäre Route wird durch die erste Sekundäre Route ersetzt

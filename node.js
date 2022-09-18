@@ -505,10 +505,10 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             _rManager.hasRoutes(package.frame.source, connObj.sessionId())
             .then(async (r) => {
                 // Sollte die Route nicht bekannt sein, so wird sie dem Routing Manager hinzugefügt
-                if(!r) { await _rManager.addRoute(connObj.sessionId(), package.frame.source, null, 1200000); }
+                if(!r) { await _rManager.addRoute(connObj.sessionId(), package.frame.source, null, 60000); }
 
                 // Der Routing Manager wird Signalisiert das ein Paket emfpangen wurde
-                await _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination);
+                await _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination, connObj);
 
                 // Das Paket wird Lokal weiter verarbeitet
                 _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState=true) => {
@@ -1228,7 +1228,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                     }
 
                     // Die Route wird für die Aktuelle Verbindung registriert
-                    await _rManager.addRoute(cEpObj.sessionId(), package.addr, Date.now() - firstPackageTime, 1200000);
+                    await _rManager.addRoute(cEpObj.sessionId(), package.addr, Date.now() - firstPackageTime, 60000);
 
                     // Der Recive Response Counter wird hochgezählt
                     recivedResponses += 1;
