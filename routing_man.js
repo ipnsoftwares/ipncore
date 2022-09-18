@@ -443,6 +443,10 @@ const routingManager = (signWithNodeKey) => {
                 if(currentSessionValue === undefined) continue;
                 if(ctstamp - currentSessionValue >= tmpsobj) {
                     // Es wird geprüft ob ein Paket Empfangen wurde
+                    const lrec = lastPackageRecivedFromAddress.get(otem);
+                    if(lrec === undefined) continue;
+
+                    // Es wird geprüft ob ein Eintrag für die Sitzung vorhanden ist
                 }
             }
         }
