@@ -24,6 +24,9 @@ const routingManager = (signWithNodeKey) => {
     // Speichert alle EndPoints ab
     var openEndPoints = new Map();
 
+    // Speichert die Pingzeiten für eine Adresse ab
+    const adressPingTimes = new Map();
+
     // Wird verwendet um eine Route hinzuzufügen
     const _addRotute = async (sessionId, publicKey, routeScannTime=null, autoDeleteTime=null) => {
         // Die SessionID wird dem PublicKey zugeordnet
