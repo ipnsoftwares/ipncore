@@ -36,6 +36,10 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     // Speichert alle Verfügbaren Sockets ab
     const _openEndPointSockets = new Map();
 
+    // Speichert ab wann, von welcher Route ein Datensatz einging
+
+    // Speichert ab, wann von welcher Route zuletz ein Datensatz gesendet wurde
+
     // Zerstört das Gesamte Objekt
     const _DESTROY_OBJECT = () => {
 
@@ -227,8 +231,6 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
     // Wird ausgeführt wenn keine Peer für diese Adresse verüfgbar ist
     routeEP.registerEvent('onDeleteRoute', async (addrPublicKey, deletedSessionId) => {
-        // Es wird geprüft ob die 
-
         // Wird ausgeführt wenn die Primäre Route geschlossen wurde
         const _CLOSED_PRIM_ROUTE = async () => {
             if(primaryRoute !== null && primaryRoute.ep.sessionId === deletedSessionId) {

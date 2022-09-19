@@ -266,7 +266,7 @@ const routingManager = (signWithNodeKey) => {
             return true;
         };
 
-        // Diese Funktion gibt alle Verfügabren Peers an
+        // Diese Funktion gibt alle Verfügabren Peers aus, die Peers werden hierbei nach dem InitPing sortiert und zurückgegeben
         const _GET_ALL_PEERS = async () => {
             const tsid = pkeyToSessionEP.get(publicKey);
             if(tsid === undefined) return [];
