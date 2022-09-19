@@ -9,6 +9,8 @@ const ADR_EP_STATES = {
     NO_ACTIVE_ROUTES_FROZEN:0,          // Keine Aktiven Routen verfügbar, alle Sockets werden eingefroren und neue Verbindungsanfragen werden in den Wartemodus versetzt
     KILLING_SOCKETS:1,                  // Alle Sockets werden geschlossen, neue Socketanfragen werden abgelehent
     REINIT:2,                           // Die Adresse muss neu Initalisiert werden, da keine Routen mehr Verfügbar sind
+    OPEN:3,                             // Gibt an dass das Objekt verwendet werden kann
+    ABORTED:4,                          // Gibt an das der Initalisierungsvorgang fehgeschlagen ist
 };
 
 // Stellt einen Address to Adress RAW EndPoint dar
@@ -51,6 +53,13 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
     // Wird verwenet um die Aktuell Verfügbaren Peers abzurufen
     const _FETCH_FASTED_PEERS = (rbackAfterFetch) => {
+        // Es wird geprüft in welchem Status sich das Objekt befindet, der Status muss NULL sein
+        if(objectState !== null) {
+            // Der Vorgang wird abgebrochen, das Objekt wurde bereits Initalisiert
+            return;
+        }
+
+        // Es werden die Schnellsten Peers, sortiert nach Route Init Time abgerufen
         routeEP.getAllPeers()
         .then((r) => {
             // Es wird geprüft ob es passende EndPunkte gibt
@@ -130,7 +139,11 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
     // Wird aller 5 Sekunden als Timer ausgeführt und Aktuallisiert die Verbindungen nach geschwindigkeit
     const _SYNC_ROUTE_PROCESS_TIME = () => {
-
+        // Es wird geprüft wie der Status des Objektes ist
+        if(objectState === ADR_EP_STATES.OPEN) {
+            // Es wird geprüft wann das letztemal Daten Empfangen und gesendet wurden
+            
+        }
     };
 
     // Wird als ReRoute ausgeführt um eine neue Route für den Vorgang zu Initaliseren
@@ -202,14 +215,8 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
                             }
                         }
                         else {
-                            // Es wird geprüft ob es sich um den 4ten Vorgang handelt
-                            if(currentProccs === 4) {
-
-                            }
-                            else {
-                                // Der Vorgang wird neugestartet
-                                reRouteTimer = setTimeout(_rpt);
-                            }
+                            // Der Vorgang wird neugestartet
+                            reRouteTimer = setTimeout(_rpt);
                         }
                     }
                 });
@@ -430,15 +437,42 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         });
     };
 
+    // Wird verwendet um einen neuen Socket zu Registrieren
+    const _REGISTER_NEW_SOCKET = (localEndPoint) => {
+
+    };
+
+    // Wird verwendet um den Aktuellen Stauts des Objekts auszugeben
+    const _GET_OBJECT_STATE = () => {
+
+    };
+
+    // Gibt einen RAW Socket aus
+    const _GET_RAW_SOCKET = () => {
+
+    }
+
     // Gibt die Basis Funktionen zurück
     const _BASE_FUNCTIONS = {
-
+        createNewSocket:_REGISTER_NEW_SOCKET,                   // Erzeugt einen neuen Socket
+        getRawSocket:_GET_RAW_SOCKET,                           // Erzeugt einen neuen RAW-Socket
+        getState:_GET_OBJECT_STATE,                             // Gibt den Aktuellen Status des Objektes aus
+        ping:{
+            
+        },
+        routes:{
+            getPrimaryRoute:() => primaryRoute,                 // Gibt die Primäre Route aus
+            getSecondaryRoute:() => secondaryRoute              // Gibt die Sekundäre Route aus
+        }
     };
 
     // Es werden alle Verfügbaren Routen Initalisiert
     _FETCH_FASTED_PEERS((r) => {
         // Es wird geprüft ob der Vorgang erfolgreich durchgeführt wurde
         if(r === true) {
+            // Der Aktuelle Status wird festgelegt
+            objectState = ADR_EP_STATES.OPEN;
+
             // Der Auto Syncing Timer wird gestartet
             syncRouteTimer = setTimeout(_SYNC_ROUTE_PROCESS_TIME, 5000);
 
@@ -446,6 +480,9 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             rcb(null, _BASE_FUNCTIONS); 
         }
         else {
+            // Der Aktuelle Stauts wird festgelegt
+            objectState = ADR_EP_STATES.ABORTED;
+
             // Es konnte keine Route Initalisiert werden
             rcb('no_route_available'); 
         }
