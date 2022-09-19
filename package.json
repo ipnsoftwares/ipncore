@@ -14,6 +14,7 @@
     "bech32": "^2.0.0",
     "cbor": "^8.1.0",
     "figlet": "^1.5.2",
+    "ip6addr": "^0.2.5",
     "js-sha3": "^0.8.0",
     "libsodium-wrappers": "^0.7.10",
     "moment": "^2.29.4",

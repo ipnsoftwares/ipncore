@@ -279,6 +279,7 @@ const routingManager = (signWithNodeKey) => {
         // Wird als Funktionen zurückgegeben
         const _OBJ_FUNCTIONS = {
             registerEvent:(eventName, listner) => eventEmitter.on(eventName, listner),
+            avarageInitPingTime:(pk, cbo, pit) => _avarageInitPingTime(pk, cbo, pit),
             isUseable:() => _ADDRESS_ROUTE_IS_AVAIL(),
             getAllPeers:() => _GET_ALL_PEERS(),
             hasPeers:() => _PEERS_AVAIL() 
@@ -296,6 +297,11 @@ const routingManager = (signWithNodeKey) => {
 
         // Das Objekt wird zurückgegeben
         return _OBJ_FUNCTIONS;
+    };
+
+    // Wird verwendet um die Init Time einer Route anzupassen
+    const _avarageInitPingTime = async (publicKey, connObj, pinTime) => {
+
     };
 
     // Signalisiert das ein Paket von einer bestimmten Adresse Empangen wurde
@@ -372,7 +378,7 @@ const routingManager = (signWithNodeKey) => {
     };
 
     // Nimmt Pakete entgegen welche versendet werden sollen
-    const _enterOutgoingLayer2Packages = (destination, framePackage, callbackSend, revalp=1) => {
+    const _enterOutgoingLayer2Packages = (destination, framePackage, callbackSend, revalp=1, directEpObjectToSend=null) => {
         // Es wird geprüft ob es sich bei der Empfänger Adresse um eine bekannte Adresse handelt
         const endPointSession = pkeyToSessionEP.get(destination);
         if(endPointSession === undefined) {
@@ -389,8 +395,10 @@ const routingManager = (signWithNodeKey) => {
         }
 
         (async() => {
-            // Die Daten werden an die erste Verbindung gesendet
-            const firstConnection = sessionEndPoints.get(endPointSession[0]);
+            // Die Daten werden an den Schnellsten Node gesendet
+            let firstConnection;
+            if(directEpObjectToSend !== null) { firstConnection = directEpObjectToSend; }
+            else { firstConnection = sessionEndPoints.get(endPointSession[0]); }
 
             // Es wird geprüft ob die Verbindung abgerufen werden konnte
             if(firstConnection === undefined) {
@@ -424,7 +432,6 @@ const routingManager = (signWithNodeKey) => {
         const ctstamp = Date.now();
 
         // Die Einzelnen Schlüssel werden abgerufen
-        let retrValues = [];
         for(const otem of cobjKeys) {
             // Es werden alle Sitzungen für diese Adresse abgerufen
             const tempSessions = await deleteAddressRoute.get(otem);
@@ -444,9 +451,15 @@ const routingManager = (signWithNodeKey) => {
                 if(ctstamp - currentSessionValue >= tmpsobj) {
                     // Es wird geprüft ob ein Paket Empfangen wurde
                     const lrec = lastPackageRecivedFromAddress.get(otem);
-                    if(lrec === undefined) continue;
-
-                    // Es wird geprüft ob ein Eintrag für die Sitzung vorhanden ist
+                    if(lrec !== undefined) {
+                        // Es wird geprüft ob ein Eintrag für die Sitzung vorhanden ist
+                        const tro = lrec.get(xtem);
+                        if(tro !== undefined) {
+                            if(ctstamp - tro >= tmpsobj) _delRoute(otem, xtem);
+                        }
+                        else _delRoute(otem, xtem);
+                    }
+                    else _delRoute(otem, xtem);
                 }
             }
         }

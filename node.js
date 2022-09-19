@@ -416,9 +416,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
     // Verarbeitet Pakete welche für den Aktuellen Node bestimmt sind
     const _ENTER_LOCAL_LAYER2_PACKAGE = (packageFrame, connObj, callback) => {
-        // Log
-        dprintok(10, ['Package recived over'], [colors.FgMagenta, connObj.sessionId()], ['from ', colors.FgYellow, packageFrame.source]);
-
         // Der Paketinhalt wird entschlüsselt
         const decryptedPackage = packageFrame.body.ebody;
 
@@ -451,11 +448,14 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Das Frame wird Signiert
             const signatedFrame = _SIGN_FRAME(preLayer2Frame);
 
-            // Das Paket wird zum versenden an den Routing Manager übergeben
-            _rManager.enterOutgoingLayer2Packages(packageFrame.source, signatedFrame, (r) => {
-                callback();
-                console.log('PING_REPLYED');
-            });
+            // Das Layer 1 Paket wird gebaut
+            const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:signatedFrame };
+
+            // Das Paket wird Signiert
+            const signatedPackage = _SIGN_PRE_PACKAGE(prePackage);
+
+            // Das Paket wird an den Peer zurückgesendet von dem es gekommen ist
+            connObj.sendPackage(signatedPackage, (r) => { callback(r); });
 
             // Die Aufgabe wurde erfolgreich fertigestellt
             return;
@@ -499,6 +499,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             return;
         }
 
+        // Log
+        dprintok(10, ['Package'], [colors.FgRed, getHashFromDict(package.frame).toString('base64')], ['recived over'], [colors.FgMagenta, connObj.sessionId()], ['from ', colors.FgYellow, package.frame.source]);
+
         // Es wird geprüft ob es sich bei dem Empfänger um eine Lokale Adresse handelt, wenn nicht wird das Paket an den Routing Manager übergeben
         if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === package.frame.destination) {
             // Es wird geprüft ob es für die Quelle eine Route gibt
@@ -511,7 +514,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 await _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination, connObj);
 
                 // Das Paket wird Lokal weiter verarbeitet
-                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState=true) => {
+                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState) => {
                         
                 });
             })

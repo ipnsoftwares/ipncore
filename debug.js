@@ -69,11 +69,26 @@ const dprintinfo = (level, ...elements) => {
     console.log(`${FgCyan}${tempTime}${Reset}`, ...prints);
 };
 
+// Zeigt eine Warnung an
+const dpwarning = (level, ...elements) => {
+    let prints = [];
+    for(const otem of elements) {
+        var bonds = '';
+        for(const xtem of otem) { bonds += xtem; }
+        bonds += `${Reset}`;
+        prints.push(bonds);
+    }
+    const tempTime = moment().format('yyyy-mm-dd:hh:mm:ss');
+    console.log(`${FgYellow}${tempTime}${Reset}`, ...prints);
+};
+
+
 
 module.exports = {
     dprintok:dprintok,
     dprinterror:dprinterror,
     dprintinfo:dprintinfo,
+    dprintwarning:dpwarning,
     colors: {
         Reset:Reset,
         Bright:Bright,

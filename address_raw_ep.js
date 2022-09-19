@@ -1,4 +1,4 @@
-const { dprinterror, dprintok, colors } = require('./debug');
+const { dprinterror, dprintok, colors, dprintwarning } = require('./debug');
 const { getHashFromDict } = require('./crypto');
 const consensus = require('./consensus');
 const crypto = require('crypto');
@@ -6,7 +6,9 @@ const crypto = require('crypto');
 
 // Gibt alle möglichen Statuse an
 const ADR_EP_STATES = {
-
+    NO_ACTIVE_ROUTES_FROZEN:0,          // Keine Aktiven Routen verfügbar, alle Sockets werden eingefroren und neue Verbindungsanfragen werden in den Wartemodus versetzt
+    KILLING_SOCKETS:1,                  // Alle Sockets werden geschlossen, neue Socketanfragen werden abgelehent
+    REINIT:2,                           // Die Adresse muss neu Initalisiert werden, da keine Routen mehr Verfügbar sind
 };
 
 // Stellt einen Address to Adress RAW EndPoint dar
@@ -14,20 +16,38 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     // Es wird geprüft ob eine Route verfügbar ist
     if(!await routeEP.isUseable()) { return 'unkown_route_for_address'; }
 
-    // Speichert die Primäre Route ab
-    let primaryRoute = null;
-
-    // Speichert die Sekundären Routen ab
-    let secondaryRoutes = [];
+    // Speichert die Primäre sowie falls vorhanden sie Sekundäre Route ab
+    let primaryRoute = null, secondaryRoute = null;
 
     // Speichert den SYNC Route Timer ab
     let syncRouteTimer = null;
 
+    // Gibt an in welchem Zustand sich das Objekt befindet
+    let objectState = null;
+
+    // Speichert den Timer ab, welcher ein ReRoute durchführt
+    let reRouteTimer = null;
+
     // Speichert Offene Ping Vorgänge ab
     const _openPingProcesses = new Map();
 
-    // Gibt an in welchem Zustand sich das Objekt befindet
-    const _objectState = null;
+    // Speichert alle Verfügbaren Sockets ab
+    const _openEndPointSockets = new Map();
+
+    // Zerstört das Gesamte Objekt
+    const _DESTROY_OBJECT = () => {
+
+    };
+
+    // Wird verwendet um alle Sockets einzufrieren
+    const _FROZE_ALL_SOCKETS = () => {
+        console.log('FROZE_ALLE_SOCKETS');
+    };
+
+    // Wird verwendet um alle Sockets zu schließen
+    const _CLOSE_ALL_SOCKETS = (reason=null, callback=null) => {
+        console.log('CLOSE_ALL_SOCKETS')
+    };
 
     // Wird verwenet um die Aktuell Verfügbaren Peers abzurufen
     const _FETCH_FASTED_PEERS = (rbackAfterFetch) => {
@@ -36,18 +56,15 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             // Es wird geprüft ob es passende EndPunkte gibt
             if(r.length === 0) { rbackAfterFetch(false); return; }
 
-            // Es wird geprüft ob alternative Verbindungen vorhanden sind, wenn ja wird der Vorgang abgebrochen, es dürfen keine Peers mehr Vorhanden sein
-            secondaryRoutes = [];
-
-            // Es werden die 2 Schnellsten Peers herausgesucht
-            if(r.length > 2) { searchedPeers = r.subarray(0, 2); }
+            // Es werden die 4 Schnellsten Peers herausgesucht
+            if(r.length > 2) { searchedPeers = r.subarray(0, 4); }
             else { searchedPeers = r; }
 
             // Die Pakete werden an die Peers gesendet
-            let currentResponse = 0, hasReturned = false, failedReturns = 0;
+            let currentResponse = 0, hasReturned = false, failedReturns = 0, dopedReturns = 0;
             for(const otem of searchedPeers) {
                 // An den Peer wird ein Ping Paket gesendet
-                _START_PING_PROCESS(512, otem, (rstae, rtime, pingid) => {
+                _START_PING_PROCESS(64, otem, (rstae, rtime, pingid) => {
                     // Es wird geprüft ob der Vorgang erfolgreich war
                     if(rstae !== true) {
                         // Der Fehlercounter wird hochgezählt
@@ -69,82 +86,176 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
                     // Es wird Signalisiert das 1 Paket empfangen wurde
                     currentResponse += 1;
 
-                    // Es wird geprüft ob es sich um die erste Antwort handelt
-                    if(currentResponse === 1 && hasReturned === false) {
-                        // Debug Log
-                        dprintok(10, ['Pong packet'], [colors.FgMagenta, pingid], ['received']);
+                    // Debug Log
+                    dprintok(10, ['Pong packet'], [colors.FgMagenta, pingid], ['received']);
 
-                        // Es wird Signalisiert dass eine Antwort empfangen wurde
-                        hasReturned = true;
-
+                    // Es wird geprüft ob es sich um die erste oder zweite Antwort handelt
+                    if(primaryRoute === null && secondaryRoute === null) {
                         // Die Primäre Route wird abgespeichert
                         primaryRoute = { ep:otem, ping:rtime, ftime:Date.now() };
 
                         // Es wird Signalisiert dass der Vorgang erfolgreich durchgeführt wurde
-                        rbackAfterFetch(true);
+                        if(hasReturned !== true && currentResponse == 1) {
+                            // Es wird Signalisiert dass eine Antwort empfangen wurde
+                            hasReturned = true;
+
+                            // Die Callback Funktion wird aufgerufen
+                            rbackAfterFetch(true);
+                            return;
+                        }
+                    }
+                    else if(primaryRoute !== null && secondaryRoute === null) {
+                        // Die Primäre Route wird abgespeichert
+                        secondaryRoute = { ep:otem, ping:rtime, ftime:Date.now() };
+
+                        // Es wird Signalisiert dass der Vorgang erfolgreich durchgeführt wurde
+                        if(hasReturned !== true && currentResponse == 1) {
+                            // Es wird Signalisiert dass eine Antwort empfangen wurde
+                            hasReturned = true;
+
+                            // Die Callback Funktion wird aufgerufen
+                            rbackAfterFetch(true);
+                            return;
+                        }
                     }
                     else {
-                        // Debug Log
-                        dprintok(10, ['Pong packet'], [colors.FgMagenta, pingid], ['received']);
-
-                        // Die Verbindung wird hinzugefügt
-                        secondaryRoutes.push({ ep:otem, ping:rtime, ftime:Date.now(), lastSend:Date.now() });
+                        // Weiteren Pakete werden verworfen, da bereits 2 Routen ermittelt wurden
+                        dprintok(10, ['Pong packet'], [colors.FgMagenta, pingid], ['received and droped, has always a primary and secondary route.']);
+                        dopedReturns += 1;
                     }
                 });
             }
         });
     };
 
-    // Wird aller 30 Sekunden als Timer ausgeführt und Aktuallisiert die Verbindungen nach geschwindigkeit
+    // Wird aller 5 Sekunden als Timer ausgeführt und Aktuallisiert die Verbindungen nach geschwindigkeit
     const _SYNC_ROUTE_PROCESS_TIME = () => {
-        // Alle Verfügbaren Peers werden in einer Liste zusammengefasst
-        let newTempList = [];
-        if(primaryRoute !== null) newTempList.push(primaryRoute);
-        newTempList = newTempList + secondaryRoutes;
 
-        // Es wird geprüft ob ein Peer verfügbar ist
-        if(newTempList.length === 0) return;
+    };
 
-        // Es werden alle Peers geprüft wann sie das letztemal
-        for(const peeritem of newTempList) {
-            // Es wird geprüft ob es länger als 30 Sekunden her ist dass ein Paket gesendet oder Empfangen wurde
-            if(peeritem) {
-
-            }
+    // Wird als ReRoute ausgeführt um eine neue Route für den Vorgang zu Initaliseren
+    const _REROUTE_ADDRESS = (callback) => {
+        // Es wird geprüft ob Peers verfügbar sind, wenn ja wird ein Routing Prozess gestartet
+        if(rawFunctions.totalPeers() >= 1) {
+            // Es wird geprüft ob die
+            callback(false);
+            return;
         }
+
+        // Es sind keine Peers verfügbar
+        callback(false);
+    };
+
+    // Wird ausgeführt, wenn keine Route mehr Verfügbar ist
+    const _NO_ROUTE_AVAIL_EVENT = async () => {
+        // Der Aktuelle Stauts des Objektes wird geändert
+        objectState = ADR_EP_STATES.NO_ACTIVE_ROUTES_FROZEN;
+
+        // Alle Sockets werden eingefroren
+        _FROZE_ALL_SOCKETS();
+
+        // Die Routen werden geleert
+        primaryRoute = null;
+        secondaryRoute = null;
+
+        // Der SYNC Timer wird gestoppt
+        if(syncRouteTimer !== null) { clearTimeout(syncRouteTimer); syncRouteTimer = null; }
+
+        // Debug Meldung
+        dprinterror(10, ['There is no active route available for address'], [colors.FgYellow, destinationPublicKey, colors.Reset, '.'])
+
+        // Speichert ab, wann der Prozess begonnen hat
+        const procstime = Date.now();
+
+        // Es wird ein Timer gestartet, welcher 5 Sekunden wartet bis er versucht eine neue Route zu Initalisieren
+        reRouteTimer = setTimeout(() => {
+            // Speichert ab, der wievielste Vorgang es ist
+            let currentProccs = 0;
+
+            // Der ReRoute vorgang wird durchgeführt
+            const _rpt = () => {
+                _REROUTE_ADDRESS((state) => {
+                    // Es wird ein Vorgang hochgezählt
+                    currentProccs += 1;
+
+                    // Es wird geprüft ob der Vorgang durchgeführt werden konnte
+                    if(state === true) {
+
+                    }
+                    else {
+                        // Es wird geprüft ob es Offene Sockets gibt
+                        if(new Array(_openEndPointSockets.keys()).length > 0) {
+                            // Es wird geprüft ob es sich um den 4ten Versuch handelt, wenn ja werden alle Offenen Vorgänge geschlossen
+                            if(currentProccs >= 4) {
+                                // Der Vorgang wird endgültig abgebrochen, es werden alle Socket verbindungen geschlossen
+                                _CLOSE_ALL_SOCKETS(null, () => {
+                                    // Das Objekt wird in den REINIT Modus versetzt
+                                    objectState = ADR_EP_STATES.REINIT;
+
+                                    // Der Vorgang wird neugestartet
+                                    reRouteTimer = setTimeout(_rpt);
+                                });
+                            }
+                            else {
+                                // Der Vorgang wird neugestartet
+                                reRouteTimer = setTimeout(_rpt);
+                            }
+                        }
+                        else {
+                            // Es wird geprüft ob es sich um den 4ten Vorgang handelt
+                            if(currentProccs === 4) {
+
+                            }
+                            else {
+                                // Der Vorgang wird neugestartet
+                                reRouteTimer = setTimeout(_rpt);
+                            }
+                        }
+                    }
+                });
+            };
+            _rpt();
+        }, 5000);
     };
 
     // Wird ausgeführt wenn keine Peer für diese Adresse verüfgbar ist
     routeEP.registerEvent('onDeleteRoute', async (addrPublicKey, deletedSessionId) => {
-        console.log('DELE')
-        // Es wird geprüft um welceh Sitzung es sich handelt
-        if(primaryRoute !== null) {
-            if(primaryRoute.ep.sessionId === deletedSessionId) {
-                // Debug Log
-                dprintok(10, ['Session'], [colors.FgMagenta, primaryRoute.ep.sessionId], ['has been removed as the primary route from end point'], [colors.FgYellow, addrPublicKey, colors.Reset, '.']);
+        // Es wird geprüft ob die 
 
-                // Sollte eine Alternative Route vorhanden sein, wird die Primäre Route durch die alternativen Route ersetzt, sollte keine Route vorhanden sein, wird ein Routing Request gestartet
-                if(secondaryRoutes.length > 0) {
-                    // Die Primäre Route wird durch die erste Sekundäre Route ersetzt
-                    const retrivedEp = secondaryRoutes.pop();
-                    dprintok(10, ['The Primary Route'], [colors.FgMagenta, primaryRoute.ep.sessionId], ['has been replaced by the Secondary Route'], [colors.FgMagenta, retrivedEp.ep.sessionId, colors.Reset, '.']);
-                    primaryRoute = retrivedEp;
+        // Wird ausgeführt wenn die Primäre Route geschlossen wurde
+        const _CLOSED_PRIM_ROUTE = async () => {
+            if(primaryRoute !== null && primaryRoute.ep.sessionId === deletedSessionId) {
+                // Debug Meldung
+                dprintwarning(10, ['The primary route'], [colors.FgMagenta, deletedSessionId], ['for address'], [colors.FgYellow, addrPublicKey], ['has been closed.'])
+
+                // Es wird geprüft ob eine Sekundäre Verbindung verfügbar ist
+                if(secondaryRoute !== null) {
+                    // Die Primäre Route wird durch die Sekundäre Route ausgetauscht
+                    dprintok(10, ['The secondary route'], [colors.FgMagenta, secondaryRoute.ep.sessionId], ['for the address'], [colors.FgYellow, addrPublicKey], ['was used as the primary route.'])
+                    primaryRoute = secondaryRoute;
+                    secondaryRoute = null;
                 }
-                else {
-                    // Die Primäre Route wird entfernt
-                    dprinterror(10, ['There is no longer a route for the endpoint'], [colors.FgYellow, addrPublicKey, colors.Reset, ', all sockets are frozed.']);
-                    if(syncRouteTimer !== null) clearTimeout(syncRouteTimer);
-                    primaryRoute = null;
-                }
+                else await _NO_ROUTE_AVAIL_EVENT();
             }
-        }
-        else {
-            // Die Sekundäre Route wird herausgefiltert
-            secondaryRoutes = secondaryRoutes.filter(function(ele){
-                if(ele.ep.sessionId === deletedSessionId) dprintok(10, ['Session'], [colors.FgMagenta, primaryRoute.ep.sessionId], ['has been removed as route from end point'], [colors.FgYellow, addrPublicKey, colors.Reset, '.']); 
-                return ele.ep.sessionId != deletedSessionId; 
-            });
-        }
+        };
+
+        // Wird ausgeführt wenn die Sekundäre Route geschlossen wurde
+        const _CLOSED_SEC_ROUTE = async () => {
+            if(secondaryRoute !== null && secondaryRoute.ep.sessionId === deletedSessionId) {
+                // Debug Meldung
+                dprintwarning(10, ['The secondary route'], [colors.FgMagenta, deletedSessionId], ['for address'], [colors.FgYellow, addrPublicKey], ['has been closed.'])
+
+                // Die Alternative Route wird entfernt
+                secondaryRoute = null;
+            }
+            else {
+                if(primaryRoute !== null && primaryRoute.ep.sessionId) await _CLOSED_PRIM_ROUTE();
+            }
+        };
+
+        // Es wird geprüft um welche Sitzung es sich handelt
+        if(primaryRoute !== null && primaryRoute.ep.sessionId === deletedSessionId) await _CLOSED_PRIM_ROUTE();
+        else await _CLOSED_SEC_ROUTE();
     });
 
     // Wir ausgeführt sobald ein Peer für diese Verbindung verfügbar ist

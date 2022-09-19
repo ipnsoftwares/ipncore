@@ -18,9 +18,7 @@ else {
 
 
 
-var test = new Map();
-test.set('a', new Map());
-
-console.log(test.get('a').get('b'))
-test.get('a').set('b', 320);
-console.log(test.get('a').get('b'))
+const m = require('ip6addr');
+const k = m.parse('2001:0db8:85a3:0000:0000:8a2e:0370:7334')
+const t = k.toString({ format: k.kind().replace('ip', '') });
+console.log(t)

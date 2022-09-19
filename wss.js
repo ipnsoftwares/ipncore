@@ -9,7 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 // Stellt eine Verbindung dar
 const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=false, sfunctions=[], clrqfunctions=[], callbackAfterConnected=null, connectionClosedCallback=null) => {
     // Speichert die Aktuelle SessionID dieser Verbindung ab
-    const _currentSessionId = createRandomSessionId();
+    let _currentSessionId = createRandomSessionId();
 
     // Gibt die Startzeit der Verbindung an
     var _connectionStartTime = Date.now();
