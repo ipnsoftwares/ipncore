@@ -7,6 +7,18 @@ const current_version = 10000000;
 // Speichert das Aktuelle Netzwerk ab
 const current_network = 'IPN';
 
+// Gib die Standard TTL für Tor-Verbindungen an
+const torBasedTransportSessionDefaultTTL = 120000;
+
+// Gib die Standard TTL für I2P-Verbindungen an
+const i2pBasedTransportSessionDefaultTTL = 120000;
+
+// Gib die Standard TTL für IP-Verbindungen an
+const ipBasedTransportSessionDefaultTTL = 10000;
+
+// Gibt an, wieivele Routen zurückgeggeben werden sollen, wenn die Schnellste Routen ermittelt werden
+const routeingMaxPeers = 2;
+
 // Gibt den Pfad des Unix Sockets für die Root freie API an
 const unix_socket_none_root_osx_path = `$TMPDIR/${current_network.toLowerCase()}/none_root_socket`;
 const unix_socket_none_root_path = `$TMPDIR/${current_network.toLowerCase()}/none_root_socket`;
@@ -43,6 +55,12 @@ module.exports = {
     bootnode_public_ip_addresses:bootnode_public_ip_addresses,
     bootnode_public_dns_names:bootnode_public_dns_names,
     main_blocked_public_keys:main_blocked_public_keys,
+    defaults:{
+        ipBasedTransportSessionDefaultTTL:ipBasedTransportSessionDefaultTTL,
+        torBasedTransportSessionDefaultTTL:torBasedTransportSessionDefaultTTL,
+        i2pBasedTransportSessionDefaultTTL:i2pBasedTransportSessionDefaultTTL,
+        routeingMaxPeers:routeingMaxPeers
+    },
     socket_paths:{
         unix_socket_none_root_osx_path:unix_socket_none_root_osx_path,
         unix_socket_none_root_path:unix_socket_none_root_path,

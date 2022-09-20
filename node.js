@@ -221,12 +221,22 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             }
         }
 
+        // Wird verwendet um ein Signiertes Layer 2 Frame zu versenden
+        const _SEND_LAYER_FRAME = (frameObj, cbb) => {
+            // Es wird geprüft ob das Frame Sendbar ist
+
+            // Dem Cache wird Signalisiert dass ein Paket versendet wird
+
+        };
+
         // Die Basisfunktionen für das Routing werden erzeugt
         const routingFunctions = {
-            enterPackage:(packageObj, cb=null) => connObj.sendPackage(packageObj, cb),
-            isConnected:() => connObj.isConnected(),
-            pingTime:() => connObj.getPingTime(),
-            sessionId:connObj.sessionId(),
+            sendFramePacakge:_SEND_LAYER_FRAME,
+            enterPackage:connObj.sendPackage,
+            isConnected:connObj.isConnected,
+            pingTime:connObj.getPingTime,
+            sessionId:connObj.sessionId,
+            defaultTTL:connObj.defaultTTL,
             type:"ws",
         };
 
@@ -414,6 +424,16 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         return Object.assign(unsignedFrame, { source:Buffer.from(packageSig.pkey).toString('hex'), ssig:Buffer.from(packageSig.sig).toString('hex') });
     };
 
+    // Gibt an, ob es für dieses Paket einen Offnenen Lokalen Socket gibt
+    const _HAS_OPEN_LOCAL_SOCKET_FOR_LAYERTPACKAGE = (layertpackage, connObj, callback) => {
+        return false;
+    };
+
+    // Nimmt Pakete für Lokale Sockets entgegen
+    const _ENTER_LOCAL_SOCKET_PACKAGES = (layertpackage, connObj, callback) => {
+
+    };
+
     // Verarbeitet Pakete welche für den Aktuellen Node bestimmt sind
     const _ENTER_LOCAL_LAYER2_PACKAGE = (packageFrame, connObj, callback) => {
         // Der Paketinhalt wird entschlüsselt
@@ -458,6 +478,18 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             connObj.sendPackage(signatedPackage, (r) => { callback(r); });
 
             // Die Aufgabe wurde erfolgreich fertigestellt
+            return;
+        }
+
+        // Es wird geprüft ob das Paket für einen Lokalen Socket bestimmt ist
+        if(_HAS_OPEN_LOCAL_SOCKET_FOR_LAYERTPACKAGE(packageFrame) === true) {
+            // Das Paket wird an den Lokalen Socket übergeben
+            _ENTER_LOCAL_SOCKET_PACKAGES(packageFrame, connObj, (r) => {
+                if(r === true) callback();
+                else callback(false);
+            });
+
+            // Der Vorgang wird an dieser Stelle beendet
             return;
         }
 
@@ -1327,10 +1359,16 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         })();
     };
 
+    // Erstellt einen neuen Lokalen Socket
+    const createNewLocalSocket = (endPoint, callback) => {
+
+    };
+
     // Das Objekt wird zurückgegben
     return {
         addNewWSServer:addNewWSServer,
         initAddressRoute:initAddressRoute,
+        createNewLocalSocket:createNewLocalSocket,
         getAddressRawEndPoint:getAddressRawEndPoint,
         addPeerClientConnection:addPeerClientConnection,
     };

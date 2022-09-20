@@ -33,7 +33,7 @@ const routingManager = (signWithNodeKey) => {
     var addressSessionAddedTime = new Map();
 
     // Speichert ab, wielange es bei der Adresse gedauert hat bis sie auf ein Routing Request geantwortet hat
-    var addressRRequestTime = new Map();
+    var initPingTime = new Map();
 
     // Speichert ab wann das letztemal ein Paket von der Adresse XYZ Empfangen wurde
     var lastPackageRecivedFromAddress = new Map();
@@ -71,10 +71,6 @@ const routingManager = (signWithNodeKey) => {
         // Die Route wurde erfolgreich hinzugefügt
         dprintok(10, ['Address route'], [colors.FgYellow, publicKey], ['has been added to session'], [colors.FgMagenta, sessionId]);
 
-        // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt
-        const addressRawEP = openEndPoints.get(publicKey);
-        if(addressRawEP !== undefined) { addressRawEP.events.onAddNewRoute(publicKey, sessionId); }
-
         // Es wird geprüft ob ein autoDeleteTime eintrag vorhanden ist
         if(autoDeleteTime !== null) {
             // Es wird geprüft ob der Eintrag bereits bekannt ist
@@ -90,18 +86,7 @@ const routingManager = (signWithNodeKey) => {
         }
 
         // Es wird geprüft ob eine Route Init Time angegeben wurde
-        if(routeInitTime !== undefined && routeInitTime !== null) {
-            // Es wird geprüft ob der Eintrag bereits bekannt ist
-            if(await addressRRequestTime.get(publicKey) !== undefined) {
-                await addressRRequestTime.get(publicKey).set(sessionId, autoDeleteTime); 
-            }
-            else {
-                // Der Eintrag wird hinzugefügt
-                const newEntry = new Map();
-                newEntry.set(sessionId, autoDeleteTime);
-                addressRRequestTime.set(publicKey, newEntry);
-            }
-        }
+        if(routeInitTime !== undefined && routeInitTime !== null) { await _avarageInitPingTime(publicKey, sessionId, routeInitTime); }
 
         // Die Zeit wann der Eintrag der Cache hinzugefügt wurde, wird hinzugefügt
         if(await addressSessionAddedTime.get(publicKey) !== undefined) { await addressSessionAddedTime.get(publicKey).set(sessionId, processTimestamp); }
@@ -124,14 +109,6 @@ const routingManager = (signWithNodeKey) => {
             return false;
         }
 
-        // Entfernt die Zuordnung für diese Adresse
-        const _REMOVE_ADDRESS_ITEM_HASH = () => {
-            // Die Addres zuordnung wird dem PublicKey enzogen
-            const plainBytes = Buffer.from(publicKey, 'hex');
-            const firstHash = crypto.createHash('sha256').update(plainBytes).digest();
-            publicKeyHashEPs.delete(crypto.createHash('sha256').update(firstHash).digest('hex'));
-        }
-
         // Es werden alle Einträge Entfernt welche mit diesem PublicKey in verbindung stehen abgerufen
         for(const oitem of routesByPublicKey) {
             // Sollte eine SessionID angegeben wurden sein, wird geprütft ob es sich um diese handelt
@@ -146,14 +123,6 @@ const routingManager = (signWithNodeKey) => {
             if(filteredArray.length === 0) { idToPkey.delete(oitem); }
             else { idToPkey.set(oitem, filteredArray); }
 
-            // Die Sitzungs wird aus dem Öffentlichen Schlüssel entfernt
-            const pkeyToSessionId = await pkeyToSessionEP.get(publicKey);
-            pkeyToSessionEP.set(publicKey, pkeyToSessionId.filter(function(ele){ return ele != oitem; }));
-            if(await pkeyToSessionEP.get(publicKey).length === 0) { pkeyToSessionEP.delete(publicKey); _REMOVE_ADDRESS_ITEM_HASH(); }
-
-            // Debug Eintrag
-            dprintok(10, ['Address route'], [colors.FgYellow, publicKey], ['has been deleted from session'], [colors.FgMagenta, oitem]);
-
             // Es wird geprüft ob es einen Eintrag für AutoDeleting gibt
             if(await deleteAddressRoute.get(publicKey) !== undefined) {
                 // Es wird geprüft ob es für diese Sitzung einen eintrag gibt
@@ -164,11 +133,11 @@ const routingManager = (signWithNodeKey) => {
             }
 
             // Der Eintrag wielange der Routing Vorgang gedauert hat, wird gelöscht
-            if(await addressRRequestTime.get(publicKey) !== undefined) {
+            if(await initPingTime.get(publicKey) !== undefined) {
                 // Es wird geprüft ob es für diese Sitzung einen eintrag gibt
-                if(await addressRRequestTime.get(publicKey).get(oitem) !== undefined) {
-                    await addressRRequestTime.get(publicKey).delete(oitem);
-                    if(Array.from(addressRRequestTime.get(publicKey).keys()).length === 0) addressRRequestTime.delete(publicKey);
+                if(await initPingTime.get(publicKey).get(oitem) !== undefined) {
+                    await initPingTime.get(publicKey).delete(oitem);
+                    if(Array.from(initPingTime.get(publicKey).keys()).length === 0) initPingTime.delete(publicKey);
                 }
             }
 
@@ -181,9 +150,25 @@ const routingManager = (signWithNodeKey) => {
                 }
             }
 
-            // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt
-            const addressRawEP = await openEndPoints.get(publicKey);
-            if(addressRawEP !== undefined) { addressRawEP.events.onDeleteRoute(publicKey, oitem); }
+            // Debug Eintrag
+            dprintok(10, ['Address route'], [colors.FgYellow, publicKey], ['has been deleted from session'], [colors.FgMagenta, oitem]);
+
+            // Die Sitzungs wird aus dem Öffentlichen Schlüssel entfernt
+            const pkeyToSessionId = await pkeyToSessionEP.get(publicKey);
+            pkeyToSessionEP.set(publicKey, pkeyToSessionId.filter(function(ele){ return ele != oitem; }));
+            if(await pkeyToSessionEP.get(publicKey).length === 0) {
+                // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt
+                const addressRawEP = await openEndPoints.get(publicKey);
+                if(addressRawEP !== undefined) { addressRawEP.events.allRoutesForAddressClosed(); }
+
+                // Die Adresse wurde erfolgreich gelöscht
+                pkeyToSessionEP.delete(publicKey);
+
+                // Die Addres zuordnung wird dem PublicKey enzogen
+                const plainBytes = Buffer.from(publicKey, 'hex');
+                const firstHash = crypto.createHash('sha256').update(plainBytes).digest();
+                publicKeyHashEPs.delete(crypto.createHash('sha256').update(firstHash).digest('hex'));
+            }
         }
 
         // Die Route / Routen wurde erfolgreich entfernt
@@ -243,9 +228,85 @@ const routingManager = (signWithNodeKey) => {
         return false;
     };
 
-    // Gibt an wann die Route das letztemal benutz wurde
-    const _routeUsingLastTime = async (publicKey) => {
+    // Gibt alle möglichen Peers für eine Route aus
+    const _getAllRouteEndPoints = async (publicKey) => {
+        // Es werden alle verfügbaren Sitzungen, welche eine Route für diesen PublicKey kennen abgerufen
+        const tsid = pkeyToSessionEP.get(publicKey);
+        if(tsid === undefined) return [];
 
+        // Es werden alle Einträge aus der Datenbank abgerufen
+        var returnValue = [];
+        for(const otem of tsid){ returnValue.push(sessionEndPoints.get(otem)); }
+
+        // Die TTL für die Peers wird ermittelt
+        let optimizedPeers = [];
+        for(const peerItem of returnValue) {
+            // Es wird versucht die Aktuelle InitPingTime für die Verbindung abzurufen
+            const cip = await initPingTime.get(publicKey);
+            if(cip !== undefined) {
+                // Es wird geprüft ob es einen Eintrag für die Aktuelle Sitzung gibt
+                const sip = await cip.get(peerItem.sessionId());
+                if(sip !== undefined) {
+                    // Die Aktuelle TTL wird erechnet
+                    let prepTTL = sip * 3;
+                    if(prepTTL > peerItem.defaultTTL) prepTTL = peerItem.defaultTTL;
+
+                    // Der Peer wird hinzugefügt
+                    optimizedPeers.push({ ...peerItem, cttl:prepTTL });
+
+                    // Der Nächste Eintrag wird abgearbeitet
+                    continue;
+                }
+            }
+
+            // Es konnte keine InitPingTime für den Vorgang ermittelt werden, die Standard TTL wird verwendet
+            optimizedPeers.push({ ...peerItem, cttl:optimizedPeers.defaultTTL })
+        }
+
+        // Die Bekanntheit der Adresse wird ermittelt
+        const finalReturnValues = [];
+        for(const iot of optimizedPeers) {
+            const cto = await addressSessionAddedTime.get(publicKey);
+            if(cto !== undefined) {
+                const tro = await cto.get(iot.sessionId());
+                if(tro !== undefined) {
+                    
+                }
+            }
+        };
+
+        // Die Ermitelten Peers werden zurückgegeben
+        return optimizedPeers;
+    };
+
+    // Gibt die Schenllsten Routen für eine Verbindung aus
+    const _getFastedRouteEndPoints = async (publicKey) => {
+        // Es wird versucht alle Verfügbaren Routen abzurufen
+        const returnValue = await _getAllRouteEndPoints(publicKey);
+        if(revl.length === 0) return null;
+
+        // Die Verbindungen werden nach Socket PingTime sortiert
+        const socketPingTimeSortedPeers = returnValue.sort((a,b) => a.pingTime() - b.pingTime());
+
+        // Die Verbindungen werden nach TTL sortiert
+        const routePingTimeSortedPeers = socketPingTimeSortedPeers.sort((a,b) => a.cttl - b.cttl);
+
+        // Die Sortierten Verbindungen werden zurückgegeben
+        return routePingTimeSortedPeers;
+    };
+
+    // Gibt die Verlustrate einer Verbindung an
+    const _getLossRate = async (publicKey) => {
+
+    };
+
+    // Gibt die Optimalste Route für eine Verbindung aus
+    const _getOptimalRouteForAddress = async (publicKey) => {
+        // Es werden die Schnellsten Route abgerufen
+        const fastedRoutes = await _getFastedRouteEndPoints(publicKey);
+        if(fastedRoutes === null) return null;
+
+        // Die Verbindungen werden nach Länge der bekanntheit Sortiert
     };
 
     // Gibt einen Routing Endpoint aus
@@ -267,22 +328,42 @@ const routingManager = (signWithNodeKey) => {
         };
 
         // Diese Funktion gibt alle Verfügabren Peers aus, die Peers werden hierbei nach dem InitPing sortiert und zurückgegeben
-        const _GET_ALL_PEERS = async () => {
-            const tsid = pkeyToSessionEP.get(publicKey);
-            if(tsid === undefined) return [];
-            var returnValue = [];
-            for(const otem of tsid){ returnValue.push(sessionEndPoints.get(otem)); }
-            const sortedPerrs = returnValue.sort((a,b) => a.pingTime() - b.pingTime());
-            return sortedPerrs;
+        const _GET_ALL_PEERS = async () => await _getAllRouteEndPoints(publicKey);
+
+        // Gibt die Schnellsten Routen zurück, 
+        const _GET_FASTED_EP_ROUTES = async () => await _getFastedRouteEndPoints(publicKey);
+
+        // Gibt die Optimale Route für die Verbinding aus
+        const _GET_OPTIMAL_ROUTE_ENDPOINT = async () => await _getOptimalRouteForAddress(publicKey);
+
+        // Gibt alle Routen ohne InitPing aus
+        const _GET_ROUTES_WITHOUT_INIT_PING = () => {
+
+        };
+
+        // Gibt die InitPing Timer für eine Sitzung an
+        const _GET_INIT_PING_TIME_FOR_ADDRESS = (sessionId) => {
+            const fro = initPingTime.get(publicKey);
+            if(fro !== undefined) {
+                const frx = fro.get(sessionId);
+                if(frx === undefined) return null;
+                return frx;
+            }
+            else {
+                return null;
+            }
         };
 
         // Wird als Funktionen zurückgegeben
         const _OBJ_FUNCTIONS = {
             registerEvent:(eventName, listner) => eventEmitter.on(eventName, listner),
-            avarageInitPingTime:(pk, cbo, pit) => _avarageInitPingTime(pk, cbo, pit),
-            isUseable:() => _ADDRESS_ROUTE_IS_AVAIL(),
-            getAllPeers:() => _GET_ALL_PEERS(),
-            hasPeers:() => _PEERS_AVAIL() 
+            getRouteEndPointsWithoutInitPing:_GET_ROUTES_WITHOUT_INIT_PING,
+            getInitPingTimeForSession:_GET_INIT_PING_TIME_FOR_ADDRESS,
+            getOptimalRouteEndPoint:_GET_OPTIMAL_ROUTE_ENDPOINT,
+            getFastedEndPoints:_GET_FASTED_EP_ROUTES,
+            avarageInitPingTime:_avarageInitPingTime,
+            isUseable:_ADDRESS_ROUTE_IS_AVAIL,
+            getAllPeers:_GET_ALL_PEERS,
         };
 
         // Der Vorgang wird registriert
@@ -290,8 +371,7 @@ const routingManager = (signWithNodeKey) => {
             usedPeerPublicKeys:[],
             obj:_OBJ_FUNCTIONS,
             events:{
-                onDeleteRoute:(pgKey, sessId) => eventEmitter.emit('onDeleteRoute', pgKey, sessId),
-                onAddNewRoute:(pgKey, sessId) => eventEmitter.emit('onAddNewRoute', pgKey, sessId),
+                allRoutesForAddressClosed:() => eventEmitter.emit('allRoutesForAddressClosed'),
             } 
         });
 
@@ -300,8 +380,19 @@ const routingManager = (signWithNodeKey) => {
     };
 
     // Wird verwendet um die Init Time einer Route anzupassen
-    const _avarageInitPingTime = async (publicKey, connObj, pinTime) => {
-
+    const _avarageInitPingTime = async (publicKey, sessionId, pingTime) => {
+        // Es wird geprüft ob der Eintrag bereits bekannt ist
+        const resolvedObj = await initPingTime.get(publicKey);
+        if(resolvedObj !== undefined) {
+            await initPingTime.get(publicKey).set(sessionId, pingTime);
+            dprintok(10, ['The routing ping for address'], [colors.FgYellow, publicKey], ['on session'], [colors.FgMagenta, sessionId], ['was set to'], [colors.FgYellow, pingTime], ['ms.']);
+        }
+        else {
+            const newEntry = new Map();
+            newEntry.set(sessionId, pingTime);
+            initPingTime.set(publicKey, newEntry);
+            dprintok(10, ['The routing ping for address'], [colors.FgYellow, publicKey], ['on session'], [colors.FgMagenta, sessionId], ['is'], [colors.FgYellow, pingTime], ['ms.']);
+        }
     };
 
     // Signalisiert das ein Paket von einer bestimmten Adresse Empangen wurde
@@ -479,7 +570,6 @@ const routingManager = (signWithNodeKey) => {
         delNodeEP:_delNodeEP,
         addNodeEP:_addNodeEP,
         listRoutes:_listRoutes,
-        routeLastUsed:_routeUsingLastTime,
         getAddressRouteEP:_getRoutingEndPoint,
         hasGetRouteForPkeyHash:_hasRouteByHashAndGetSessions,
         signalPackageReciveFromPKey:_signalPackageReciveFromPKey,

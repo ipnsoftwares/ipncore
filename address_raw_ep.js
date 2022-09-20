@@ -11,266 +11,26 @@ const ADR_EP_STATES = {
     REINIT:2,                           // Die Adresse muss neu Initalisiert werden, da keine Routen mehr Verfügbar sind
     OPEN:3,                             // Gibt an dass das Objekt verwendet werden kann
     ABORTED:4,                          // Gibt an das der Initalisierungsvorgang fehgeschlagen ist
+    INITING:5                           // Gibt an dass das Objekt sich in der Vobereitung befindet
 };
 
 // Stellt einen Address to Adress RAW EndPoint dar
-const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, sourcePrivateKey, destinationPublicKey, crypto_functions, socketConfig, rcb) => {
+const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, sourcePrivateKey, destinationPublicKey, crypto_functions, socketConfig, rcb, outRouteEp=true) => {
     // Es wird geprüft ob eine Route verfügbar ist
     if(!await routeEP.isUseable()) { return 'unkown_route_for_address'; }
-
-    // Speichert die Primäre sowie falls vorhanden sie Sekundäre Route ab
-    let primaryRoute = null, secondaryRoute = null;
-
-    // Speichert den SYNC Route Timer ab
-    let syncRouteTimer = null;
-
-    // Gibt an in welchem Zustand sich das Objekt befindet
-    let objectState = null;
-
-    // Speichert den Timer ab, welcher ein ReRoute durchführt
-    let reRouteTimer = null;
 
     // Speichert Offene Ping Vorgänge ab
     const _openPingProcesses = new Map();
 
-    // Speichert alle Verfügbaren Sockets ab
-    const _openEndPointSockets = new Map();
+    // Speichert den Aktuellen Stauts ab
+    let objectState = ADR_EP_STATES.INITING;
 
-    // Speichert ab wann, von welcher Route ein Datensatz einging
-
-    // Speichert ab, wann von welcher Route zuletz ein Datensatz gesendet wurde
-
-    // Zerstört das Gesamte Objekt
-    const _DESTROY_OBJECT = () => {
-
-    };
-
-    // Wird verwendet um alle Sockets einzufrieren
-    const _FROZE_ALL_SOCKETS = () => {
-        console.log('FROZE_ALLE_SOCKETS');
-    };
-
-    // Wird verwendet um alle Sockets zu schließen
-    const _CLOSE_ALL_SOCKETS = (reason=null, callback=null) => {
-        console.log('CLOSE_ALL_SOCKETS')
-    };
-
-    // Wird verwenet um die Aktuell Verfügbaren Peers abzurufen
-    const _FETCH_FASTED_PEERS = (rbackAfterFetch) => {
-        // Es wird geprüft in welchem Status sich das Objekt befindet, der Status muss NULL sein
-        if(objectState !== null) {
-            // Der Vorgang wird abgebrochen, das Objekt wurde bereits Initalisiert
-            return;
-        }
-
-        // Es werden die Schnellsten Peers, sortiert nach Route Init Time abgerufen
-        routeEP.getAllPeers()
-        .then((r) => {
-            // Es wird geprüft ob es passende EndPunkte gibt
-            if(r.length === 0) { rbackAfterFetch(false); return; }
-
-            // Es werden die 4 Schnellsten Peers herausgesucht
-            if(r.length > 2) { searchedPeers = r.subarray(0, 4); }
-            else { searchedPeers = r; }
-
-            // Die Pakete werden an die Peers gesendet
-            let currentResponse = 0, hasReturned = false, failedReturns = 0, dopedReturns = 0;
-            for(const otem of searchedPeers) {
-                // An den Peer wird ein Ping Paket gesendet
-                _START_PING_PROCESS(64, otem, (rstae, rtime, pingid) => {
-                    // Es wird geprüft ob der Vorgang erfolgreich war
-                    if(rstae !== true) {
-                        // Der Fehlercounter wird hochgezählt
-                        failedReturns += 1;
-
-                        // Es wird geprüft, weiviele Pakete fehlgeschalgen sind zu senden
-                        if(failedReturns === searchedPeers.length && hasReturned == false) {
-                            // Der Eintrag wird als returned markiert
-                            hasReturned = true;
-
-                            // Das Callback wird aufgerufen
-                            rbackAfterFetch(false);
-                        }
-
-                        // Der Vorgang wird beendet
-                        return;
-                    }
-
-                    // Es wird Signalisiert das 1 Paket empfangen wurde
-                    currentResponse += 1;
-
-                    // Debug Log
-                    dprintok(10, ['Pong packet'], [colors.FgMagenta, pingid], ['received']);
-
-                    // Es wird geprüft ob es sich um die erste oder zweite Antwort handelt
-                    if(primaryRoute === null && secondaryRoute === null) {
-                        // Die Primäre Route wird abgespeichert
-                        primaryRoute = { ep:otem, ping:rtime, ftime:Date.now() };
-
-                        // Es wird Signalisiert dass der Vorgang erfolgreich durchgeführt wurde
-                        if(hasReturned !== true && currentResponse == 1) {
-                            // Es wird Signalisiert dass eine Antwort empfangen wurde
-                            hasReturned = true;
-
-                            // Die Callback Funktion wird aufgerufen
-                            rbackAfterFetch(true);
-                            return;
-                        }
-                    }
-                    else if(primaryRoute !== null && secondaryRoute === null) {
-                        // Die Primäre Route wird abgespeichert
-                        secondaryRoute = { ep:otem, ping:rtime, ftime:Date.now() };
-
-                        // Es wird Signalisiert dass der Vorgang erfolgreich durchgeführt wurde
-                        if(hasReturned !== true && currentResponse == 1) {
-                            // Es wird Signalisiert dass eine Antwort empfangen wurde
-                            hasReturned = true;
-
-                            // Die Callback Funktion wird aufgerufen
-                            rbackAfterFetch(true);
-                            return;
-                        }
-                    }
-                    else {
-                        // Weiteren Pakete werden verworfen, da bereits 2 Routen ermittelt wurden
-                        dprintok(10, ['Pong packet'], [colors.FgMagenta, pingid], ['received and droped, has always a primary and secondary route.']);
-                        dopedReturns += 1;
-                    }
-                });
-            }
-        });
-    };
-
-    // Wird aller 5 Sekunden als Timer ausgeführt und Aktuallisiert die Verbindungen nach geschwindigkeit
-    const _SYNC_ROUTE_PROCESS_TIME = () => {
-        // Es wird geprüft wie der Status des Objektes ist
-        if(objectState === ADR_EP_STATES.OPEN) {
-            // Es wird geprüft wann das letztemal Daten Empfangen und gesendet wurden
-            
-        }
-    };
-
-    // Wird als ReRoute ausgeführt um eine neue Route für den Vorgang zu Initaliseren
-    const _REROUTE_ADDRESS = (callback) => {
-        // Es wird geprüft ob Peers verfügbar sind, wenn ja wird ein Routing Prozess gestartet
-        if(rawFunctions.totalPeers() >= 1) {
-            // Es wird geprüft ob die
-            callback(false);
-            return;
-        }
-
-        // Es sind keine Peers verfügbar
-        callback(false);
-    };
-
-    // Wird ausgeführt, wenn keine Route mehr Verfügbar ist
-    const _NO_ROUTE_AVAIL_EVENT = async () => {
-        // Der Aktuelle Stauts des Objektes wird geändert
-        objectState = ADR_EP_STATES.NO_ACTIVE_ROUTES_FROZEN;
-
-        // Alle Sockets werden eingefroren
-        _FROZE_ALL_SOCKETS();
-
-        // Die Routen werden geleert
-        primaryRoute = null;
-        secondaryRoute = null;
-
-        // Der SYNC Timer wird gestoppt
-        if(syncRouteTimer !== null) { clearTimeout(syncRouteTimer); syncRouteTimer = null; }
-
-        // Debug Meldung
-        dprinterror(10, ['There is no active route available for address'], [colors.FgYellow, destinationPublicKey, colors.Reset, '.'])
-
-        // Speichert ab, wann der Prozess begonnen hat
-        const procstime = Date.now();
-
-        // Es wird ein Timer gestartet, welcher 5 Sekunden wartet bis er versucht eine neue Route zu Initalisieren
-        reRouteTimer = setTimeout(() => {
-            // Speichert ab, der wievielste Vorgang es ist
-            let currentProccs = 0;
-
-            // Der ReRoute vorgang wird durchgeführt
-            const _rpt = () => {
-                _REROUTE_ADDRESS((state) => {
-                    // Es wird ein Vorgang hochgezählt
-                    currentProccs += 1;
-
-                    // Es wird geprüft ob der Vorgang durchgeführt werden konnte
-                    if(state === true) {
-
-                    }
-                    else {
-                        // Es wird geprüft ob es Offene Sockets gibt
-                        if(new Array(_openEndPointSockets.keys()).length > 0) {
-                            // Es wird geprüft ob es sich um den 4ten Versuch handelt, wenn ja werden alle Offenen Vorgänge geschlossen
-                            if(currentProccs >= 4) {
-                                // Der Vorgang wird endgültig abgebrochen, es werden alle Socket verbindungen geschlossen
-                                _CLOSE_ALL_SOCKETS(null, () => {
-                                    // Das Objekt wird in den REINIT Modus versetzt
-                                    objectState = ADR_EP_STATES.REINIT;
-
-                                    // Der Vorgang wird neugestartet
-                                    reRouteTimer = setTimeout(_rpt);
-                                });
-                            }
-                            else {
-                                // Der Vorgang wird neugestartet
-                                reRouteTimer = setTimeout(_rpt);
-                            }
-                        }
-                        else {
-                            // Der Vorgang wird neugestartet
-                            reRouteTimer = setTimeout(_rpt);
-                        }
-                    }
-                });
-            };
-            _rpt();
-        }, 5000);
-    };
+    // Speichert den Routing Opener Timer ab, diser Timer hält mittels Ping die Route am leben
+    let routeOpenerTimer = null;
 
     // Wird ausgeführt wenn keine Peer für diese Adresse verüfgbar ist
-    routeEP.registerEvent('onDeleteRoute', async (addrPublicKey, deletedSessionId) => {
-        // Wird ausgeführt wenn die Primäre Route geschlossen wurde
-        const _CLOSED_PRIM_ROUTE = async () => {
-            if(primaryRoute !== null && primaryRoute.ep.sessionId === deletedSessionId) {
-                // Debug Meldung
-                dprintwarning(10, ['The primary route'], [colors.FgMagenta, deletedSessionId], ['for address'], [colors.FgYellow, addrPublicKey], ['has been closed.'])
-
-                // Es wird geprüft ob eine Sekundäre Verbindung verfügbar ist
-                if(secondaryRoute !== null) {
-                    // Die Primäre Route wird durch die Sekundäre Route ausgetauscht
-                    dprintok(10, ['The secondary route'], [colors.FgMagenta, secondaryRoute.ep.sessionId], ['for the address'], [colors.FgYellow, addrPublicKey], ['was used as the primary route.'])
-                    primaryRoute = secondaryRoute;
-                    secondaryRoute = null;
-                }
-                else await _NO_ROUTE_AVAIL_EVENT();
-            }
-        };
-
-        // Wird ausgeführt wenn die Sekundäre Route geschlossen wurde
-        const _CLOSED_SEC_ROUTE = async () => {
-            if(secondaryRoute !== null && secondaryRoute.ep.sessionId === deletedSessionId) {
-                // Debug Meldung
-                dprintwarning(10, ['The secondary route'], [colors.FgMagenta, deletedSessionId], ['for address'], [colors.FgYellow, addrPublicKey], ['has been closed.'])
-
-                // Die Alternative Route wird entfernt
-                secondaryRoute = null;
-            }
-            else {
-                if(primaryRoute !== null && primaryRoute.ep.sessionId) await _CLOSED_PRIM_ROUTE();
-            }
-        };
-
-        // Es wird geprüft um welche Sitzung es sich handelt
-        if(primaryRoute !== null && primaryRoute.ep.sessionId === deletedSessionId) await _CLOSED_PRIM_ROUTE();
-        else await _CLOSED_SEC_ROUTE();
-    });
-
-    // Wir ausgeführt sobald ein Peer für diese Verbindung verfügbar ist
-    routeEP.registerEvent('onAddNewRoute', async () => {
-        // Es wird geprüft ob derzeit ein Peer verfügbar ist, wenn nicht wird ein Ping an den Aktuellen Peer gesendet
-        console.log('ADD_EP');
+    routeEP.registerEvent('allRoutesForAddressClosed', async (addrPublicKey, deletedSessionId) => {
+        console.log('AD');
     });
 
     // Signiert ein Paket mit dem Lokalen Schlüssel
@@ -321,18 +81,31 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
         // Es wird geprüft ob ein Socketobjekt angegeben wurde, wenn nicht wird geprüft ob die Primäre Route bekannt ist
         if(socketobj !== null) {
+            // Es wird versucht den Aktuellen InitPing zu ermitteln
+            let initPingTime = routeEP.getInitPingTimeForSession(socketobj.sessionId());
+            if(initPingTime === null) { initPingTime = socketobj.defaultTTL; }
+            else { initPingTime = initPingTime*3; }
+
             // Das Paket wird an den Übergebenen Socket gesendet
-            socketobj.enterPackage(signatedPackage, (r) => callback(r));
+            socketobj.enterPackage(signatedPackage, (r) => callback(r, initPingTime));
         }
         else {
-            // Es wird geprüft ob eine Primäre Verbindung verfügbar ist
-            if(primaryRoute !== null) {
-                // Das Paket wird an die Primäre Verbindung gesendet
-                primaryRoute.ep.enterPackage(signatedPackage, (r) => callback(r));
+            // Es wird geprüft wie der Objektstatus ist, sollte er nicht Offen sein, wird der Vorgang abgebrochen
+            if(objectState !== ADR_EP_STATES.OPEN) {
+                // Der Vorgang wird abgebrochen, der socket wurde noch nicht Vollständig eingerichtet oder ist nicht mehr bereit
+                return;
             }
-            else {
-                // Es wird geprüft ob eine Alternative Sekundäre verbindung verfügbar ist, wenn nicht wird der Vorgang abgebrochen
+
+            // Es wird versucht die Schnellste Route zu ermitteln
+            const optmusRoute = routeEP.getOptimalRouteEndPoint();
+            if(optmusRoute === null) {
+                // Der Vorgang wird abgebrochen, es ist keine Route verfügbar
+                callback('no_route_avail');
+                return;
             }
+
+            // Das Paket wird gesendet
+
         }
     };
 
@@ -365,7 +138,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
             // Es wird geprüft ob es einen bekannten offenen Vorgang gibt
             const fetchedOpenPingProcess = _openPingProcesses.get(packRDHash);
-            if(fetchedOpenPingProcess !== undefined) { fetchedOpenPingProcess.callResponse(); }
+            if(fetchedOpenPingProcess !== undefined) { fetchedOpenPingProcess.callResponse(connObj); }
             else { console.log('PONG_PACKAGE_DROPED'); }
         }
 
@@ -405,9 +178,12 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         };
 
         // Wird aufgerufen, wenn eine Antwort für den Ping eingetroffen ist
-        const _RESPONSE = () => {
+        const _RESPONSE = (connObj) => {
             // Es wird geprüft ob der Vorgang geöffnet ist
-            if(_openPingProcesses.get(secRandHash) === undefined) { console.log('PONG_PACKAGE_DROPED'); return; }
+            if(_openPingProcesses.get(secRandHash) === undefined) {
+                console.log('PONG_PACKAGE_DROPED');
+                return;
+            }
 
             // Sofern vorhanden wird der Timer gestoppt
             if(_TIMER_FUNCTION_PROC !== null) { clearTimeout(_OPEN_WAIT_RESPONSE_TIMER); _OPEN_WAIT_RESPONSE_TIMER = null; }
@@ -415,15 +191,21 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             // Der Vorgang wird gelöscht
             _openPingProcesses.delete(secRandHash);
 
-            // Es wird Signalisiert dass ein Pong Paket empfangen wurde
-            callback(true, Date.now() - _PING_PACKAGE_SEND_TIME, Buffer.from(secRandHash, 'hex').toString('base64'));
+            // Die benötigte Zeit wird ermittelt
+            const pingreqTime = Date.now() - _PING_PACKAGE_SEND_TIME;
+
+            // Dem Cache wird die neue Pingzeit für diese Route mitgeteilt
+            routeEP.avarageInitPingTime(destinationPublicKey, connObj.sessionId(), pingreqTime)
+            .then(() => {
+                callback(true, pingreqTime, Buffer.from(secRandHash, 'hex').toString('base64'));
+            });
         };
 
         // Speichert den Ping Vorgang ab
         _openPingProcesses.set(secRandHash, { callResponse:_RESPONSE });
 
         // Das Ping Paket wird versendet
-        _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, socketobj, (state) => {
+        _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, socketobj, (state, tttl) => {
             // Es wird geprüft ob der Ping Vorgang erfolgreich durchgeführt wurde
             if(state !== true) {
                 _openPingProcesses.delete(secRandHash);
@@ -435,13 +217,8 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             _PING_PACKAGE_SEND_TIME = Date.now();
 
             // Der Timer für diesen Ping wird gestartet
-            _OPEN_WAIT_RESPONSE_TIMER = setTimeout(_TIMER_FUNCTION_PROC, 30000);
+            _OPEN_WAIT_RESPONSE_TIMER = setTimeout(_TIMER_FUNCTION_PROC, tttl*3);
         });
-    };
-
-    // Wird verwendet um einen neuen Socket zu Registrieren
-    const _REGISTER_NEW_SOCKET = (localEndPoint) => {
-
     };
 
     // Wird verwendet um den Aktuellen Stauts des Objekts auszugeben
@@ -449,45 +226,82 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
     };
 
-    // Gibt einen RAW Socket aus
-    const _GET_RAW_SOCKET = () => {
+    // Führt den Initaliserungsping aus, die 2 Schnellsten Routen werden ermittelt
+    const _FETCH_FASTED_ROUTES_PING = async (cbrt) => {
+        // Die Schnellsten Routen werden vom Routing Manager abgerufen
+        let froutes = await routeEP.getFastedEndPoints();
 
-    }
+        // Gibt an ob das erste Paket empfangen wurde
+        let firstRongRecives = null, currentPackage = 0, totalSuccs = 0;
+
+        // Es wird geprüft ob Routen mit einem InitPing abgerufen werden konnten, wenn nicht werden alle bekannten Routen abgerufen
+        if(froutes === null) {
+            // Es konnten eine Routen mit InitPingTime ermittelt werden
+            froutes = await routeEP.getRouteEndPointsWithoutInitPing();
+
+            // Es wird geprüft ob alternative Routen abgerufen werden konnten
+            if(froutes === null) { cbrt('no_routes_for_address'); return; }
+        }
+
+        // Das Paket wird an die einzelenen Nodes gesendet
+        for(const routeItem of froutes) {
+            _START_PING_PROCESS(64, routeItem, (state, pTime, procHash) => {
+                // Es wird ein Vorgang raufgezählt
+                currentPackage += 1;
+
+                // Es wird geprüft ob der Vorgang erfolgreich durchgeführt werden konnte
+                if(state === true) {
+                    // Es wird geprüft ob es sich um das erste Paket handelt
+                    if(firstRongRecives === null) {
+                        // Die Paketanzahl wird hochgezählt
+                        totalSuccs += 1;
+
+                        // Die Aktuelle Zeit wird ermittelt
+                        firstRongRecives = Date.now();
+
+                        // Das Objekt wird als Einsatzfähug Makiert
+                        objectState = ADR_EP_STATES.OPEN;
+
+                        // Der Vorgang wurde erfolgreich durchgeführt
+                        cbrt(true, pTime, firstRongRecives, procHash);
+                    }
+                }
+            });
+
+            // Es wird geprüft ob bereits eine Antwort empfangen wurde, wenn ja wird der Vorgang abgebrochen
+            if(firstRongRecives !== null) break;
+        }
+    };
 
     // Gibt die Basis Funktionen zurück
     const _BASE_FUNCTIONS = {
-        createNewSocket:_REGISTER_NEW_SOCKET,                   // Erzeugt einen neuen Socket
-        getRawSocket:_GET_RAW_SOCKET,                           // Erzeugt einen neuen RAW-Socket
         getState:_GET_OBJECT_STATE,                             // Gibt den Aktuellen Status des Objektes aus
         ping:{
             
         },
-        routes:{
-            getPrimaryRoute:() => primaryRoute,                 // Gibt die Primäre Route aus
-            getSecondaryRoute:() => secondaryRoute              // Gibt die Sekundäre Route aus
-        }
     };
 
-    // Es werden alle Verfügbaren Routen Initalisiert
-    _FETCH_FASTED_PEERS((r) => {
-        // Es wird geprüft ob der Vorgang erfolgreich durchgeführt wurde
-        if(r === true) {
-            // Der Aktuelle Status wird festgelegt
-            objectState = ADR_EP_STATES.OPEN;
+    // Wird als Timer ausgeführt um aller 5 Sekunden einen Ping abzusenden um die Route zu überprüfen
+    const _ROUTE_OPENNER_PING = () => {
 
-            // Der Auto Syncing Timer wird gestartet
-            syncRouteTimer = setTimeout(_SYNC_ROUTE_PROCESS_TIME, 5000);
+    };
 
-            // Es wird Signalisiert dass der Vorgang erfolgreich durchgeführt wurde
-            rcb(null, _BASE_FUNCTIONS); 
-        }
-        else {
-            // Der Aktuelle Stauts wird festgelegt
-            objectState = ADR_EP_STATES.ABORTED;
+    // Es wird geprüft ob eine Route für die Adresse vorhanden ist
+    routeEP.isUseable().then(async (r) => {
+        // Es wird geprüft ob der Vorgang genutzt werden kann
+        if(r !== true) { rcb('no_routes_avail'); return; }
 
-            // Es konnte keine Route Initalisiert werden
-            rcb('no_route_available'); 
-        }
+        // Die Routing Sychnronisierung wird durchgeführt
+        await _FETCH_FASTED_ROUTES_PING((froutes) => {
+            // Es wird geprüft ob der Vorgang erfolgreich durchgeführt werden konnte
+            if(froutes !== true) { rcb('no_fast_routes_avail'); return; }
+
+            // Der Vorgang wurde erfolgreich druchgeführt
+            rcb(null, _BASE_FUNCTIONS);
+
+            // Der Routen Pinger wird geöffnet
+            routeOpenerTimer = setTimeout(_ROUTE_OPENNER_PING, 15000);
+        });
     });
 
     // Es wird versucht die Primäre

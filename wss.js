@@ -64,6 +64,7 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
     // Speichert alle Objekt funktionen ab
     const _WS_SOCKET_FUNCTIONS = {
         sendPackage:(package, callback) => _SNED_SESSION_BASED_PACKAGES(package, callback),
+        defaultTTL:consensus.defaults.ipBasedTransportSessionDefaultTTL,
         getPeerPublicKey:() => _destinationPublicKey,
         getPeerIPAddressUrl:() => sourceAddress,
         totalRXPackages:() => _recivedPackages,
