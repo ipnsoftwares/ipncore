@@ -35,6 +35,12 @@ const routingManager = (signWithNodeKey) => {
     // Speichert ab, wielange es bei der Adresse gedauert hat bis sie auf ein Routing Request geantwortet hat
     var initPingTime = new Map();
 
+    // Speichert ab, wieoft die InitZeit Justiert wurde
+    var justedInitPingTime = new Map();
+
+    // Speichert alle Fehlgeschlagenen Vorgänge ab
+    var losstPackagesOnRoutes = new Map();
+
     // Speichert ab wann das letztemal ein Paket von der Adresse XYZ Empfangen wurde
     var lastPackageRecivedFromAddress = new Map();
 
@@ -228,6 +234,11 @@ const routingManager = (signWithNodeKey) => {
         return false;
     };
 
+    // Gibt die Verlustrate einer Verbindung an
+    const _getLossRate = async (publicKey) => {
+
+    };
+
     // Gibt alle möglichen Peers für eine Route aus
     const _getAllRouteEndPoints = async (publicKey) => {
         // Es werden alle verfügbaren Sitzungen, welche eine Route für diesen PublicKey kennen abgerufen
@@ -236,7 +247,7 @@ const routingManager = (signWithNodeKey) => {
 
         // Es werden alle Einträge aus der Datenbank abgerufen
         var returnValue = [];
-        for(const otem of tsid){ returnValue.push(sessionEndPoints.get(otem)); }
+        for(const otem of tsid){ returnValue.push(sessionEndPoints.get(otem)); };
 
         // Die TTL für die Peers wird ermittelt
         let optimizedPeers = [];
@@ -252,7 +263,7 @@ const routingManager = (signWithNodeKey) => {
                     if(prepTTL > peerItem.defaultTTL) prepTTL = peerItem.defaultTTL;
 
                     // Der Peer wird hinzugefügt
-                    optimizedPeers.push({ ...peerItem, cttl:prepTTL });
+                    optimizedPeers.push({ ...peerItem, cttl:prepTTL, httl:true });
 
                     // Der Nächste Eintrag wird abgearbeitet
                     continue;
@@ -260,44 +271,75 @@ const routingManager = (signWithNodeKey) => {
             }
 
             // Es konnte keine InitPingTime für den Vorgang ermittelt werden, die Standard TTL wird verwendet
-            optimizedPeers.push({ ...peerItem, cttl:optimizedPeers.defaultTTL })
-        }
+            optimizedPeers.push({ ...peerItem, cttl:optimizedPeers.defaultTTL, httl:false });
+        };
 
-        // Die Bekanntheit der Adresse wird ermittelt
-        const finalReturnValues = [];
+        // Es wird ermittelt, wielange die Route bereits bekannt ist
+        let finalReturnValues = [];
         for(const iot of optimizedPeers) {
             const cto = await addressSessionAddedTime.get(publicKey);
             if(cto !== undefined) {
                 const tro = await cto.get(iot.sessionId());
-                if(tro !== undefined) {
-                    
-                }
+                if(tro !== undefined) { finalReturnValues.push({ ...iot, csince:tro, hsince:true }); }
             }
+            else { finalReturnValues.push({ ...iot, csince:null, hsince:false }); }
+        };
+
+        // Die Paket Sende Funktion wird überarbeitet
+        let fcklTotalReturnValue = [];
+        for(const obj of finalReturnValues) {
+            // Die EnterPackage funktion wird überarbeitet
+            const newObj = {
+                ...obj,
+                enterPackage:(package, calb) => {
+                    // Das Paket wird versendet
+                    const sendStartTime = Date.now();
+                    dprintok(10, ['Packet'], [colors.FgRed, getHashFromDict(package).toString('base64')], ['is sent to'], [colors.FgYellow, publicKey], ['via session'], [colors.FgMagenta, obj.sessionId()]);
+                    obj.enterPackage(package, (r) => {
+                        const procTime = Date.now() - sendStartTime;
+                        dprintok(10, ['Packet'], [colors.FgRed, getHashFromDict(package).toString('base64')], ['was sent'], [colors.FgYellow, publicKey], ['in ', colors.FgMagenta, procTime, ' ms'], ['via session'], [colors.FgMagenta, obj.sessionId()]);
+                        calb(r, procTime);
+                    });
+                }};
+            fcklTotalReturnValue.push(newObj);
         };
 
         // Die Ermitelten Peers werden zurückgegeben
-        return optimizedPeers;
+        return fcklTotalReturnValue;
     };
 
     // Gibt die Schenllsten Routen für eine Verbindung aus
     const _getFastedRouteEndPoints = async (publicKey) => {
         // Es wird versucht alle Verfügbaren Routen abzurufen
         const returnValue = await _getAllRouteEndPoints(publicKey);
-        if(revl.length === 0) return null;
+        if(returnValue === null) return null;
+        if(returnValue.length === 0) return null;
+
+        // Es werden alle Verbindungen ohne Connect Since Time oder TTL extrahiert
+        let filteredPeers = returnValue.filter((o) => { return o.httl === true && o.hsince === true; });
 
         // Die Verbindungen werden nach Socket PingTime sortiert
-        const socketPingTimeSortedPeers = returnValue.sort((a,b) => a.pingTime() - b.pingTime());
+        const socketPingTimeSortedPeers = filteredPeers.sort((a,b) => a.pingTime() - b.pingTime());
 
         // Die Verbindungen werden nach TTL sortiert
         const routePingTimeSortedPeers = socketPingTimeSortedPeers.sort((a,b) => a.cttl - b.cttl);
 
+        // Die Verbindungen werden nach Lange der Bekanntheit Sortiert
+        const endPointRoutes = routePingTimeSortedPeers.sort((a,b) => a.csince + b.csince);
+
+        // Es wird geprüft ob eine EndPoint Route vorhanden ist
+        if(endPointRoutes.length === 0) return null;
+
         // Die Sortierten Verbindungen werden zurückgegeben
-        return routePingTimeSortedPeers;
+        return endPointRoutes;
     };
 
-    // Gibt die Verlustrate einer Verbindung an
-    const _getLossRate = async (publicKey) => {
+    // Signalisiert das ein Zusammenhängender Sende und Lesevorgang gescheitert ist
+    const _signalLossPackage = async (publicKey, sessionId) => {
+        // Es wird geprüft ob es einen Passenden Eintrag für dien PublicKey in Kombination mit der SitzungsID gibt, wenn ja wird Signalisiert wann das letzte Package Losst aufgetreten ist
 
+        // Es wird geprüft ob es sich um die dritte Lost Meldung hintereinadner handelt, wenn ja wird die Route für diesen EndPunkt gelöscht
+        console.log('PACKAGE_LOSS');
     };
 
     // Gibt die Optimalste Route für eine Verbindung aus
@@ -306,7 +348,38 @@ const routingManager = (signWithNodeKey) => {
         const fastedRoutes = await _getFastedRouteEndPoints(publicKey);
         if(fastedRoutes === null) return null;
 
-        // Die Verbindungen werden nach Länge der bekanntheit Sortiert
+        // Die erste Verbindung wird ausgegeben
+        return fastedRoutes[0];
+    };
+
+    // Gibt besten Route für die Verbindung aus
+    const _getBestRoutes = async (publicKey) => {
+        // Es werden die Schnellsten Route abgerufen
+        const fastedRoutes = await _getFastedRouteEndPoints(publicKey);
+        if(fastedRoutes === null) return null;
+
+        // Die ersten X Routen (consensus.js::routeingMaxPeers)
+        let fetchedOptimalRoutes = [];
+        for(const otem of fastedRoutes) {
+            fetchedOptimalRoutes.push(otem);
+            if(fetchedOptimalRoutes.length === consensus.routeingMaxPeers) break;
+        }
+
+        // Die erste Verbindung wird ausgegeben
+        return fetchedOptimalRoutes;
+    };
+
+    // Gibt die InitPing Zeit einer Route aus
+    const _getInitPingTime = (publicKey, sessionId) => {
+        const fro = initPingTime.get(publicKey);
+        if(fro !== undefined) {
+            const frx = fro.get(sessionId);
+            if(frx === undefined) return null;
+            return frx;
+        }
+        else {
+            return null;
+        }
     };
 
     // Gibt einen Routing Endpoint aus
@@ -321,49 +394,22 @@ const routingManager = (signWithNodeKey) => {
 
         // Diese Funktion gibt an ob die Route für diese Adresse verfügbar ist
         const _ADDRESS_ROUTE_IS_AVAIL = async () => {
-            const tsid = pkeyToSessionEP.get(publicKey);
-            if(tsid === undefined) return false;
-            if(tsid.length === 0) return false;
+            const tsid = await _getOptimalRouteForAddress(publicKey);
+            if(tsid === null) return false;
             return true;
-        };
-
-        // Diese Funktion gibt alle Verfügabren Peers aus, die Peers werden hierbei nach dem InitPing sortiert und zurückgegeben
-        const _GET_ALL_PEERS = async () => await _getAllRouteEndPoints(publicKey);
-
-        // Gibt die Schnellsten Routen zurück, 
-        const _GET_FASTED_EP_ROUTES = async () => await _getFastedRouteEndPoints(publicKey);
-
-        // Gibt die Optimale Route für die Verbinding aus
-        const _GET_OPTIMAL_ROUTE_ENDPOINT = async () => await _getOptimalRouteForAddress(publicKey);
-
-        // Gibt alle Routen ohne InitPing aus
-        const _GET_ROUTES_WITHOUT_INIT_PING = () => {
-
-        };
-
-        // Gibt die InitPing Timer für eine Sitzung an
-        const _GET_INIT_PING_TIME_FOR_ADDRESS = (sessionId) => {
-            const fro = initPingTime.get(publicKey);
-            if(fro !== undefined) {
-                const frx = fro.get(sessionId);
-                if(frx === undefined) return null;
-                return frx;
-            }
-            else {
-                return null;
-            }
         };
 
         // Wird als Funktionen zurückgegeben
         const _OBJ_FUNCTIONS = {
+            getInitPingTimeForSession:async (sessionId) => _getInitPingTime(publicKey, sessionId),
+            signalLossPackage:async (sessionId) => await _signalLossPackage(publicKey, sessionId),
+            getOptimalRouteEndPoint:async () => await _getOptimalRouteForAddress(publicKey),
             registerEvent:(eventName, listner) => eventEmitter.on(eventName, listner),
-            getRouteEndPointsWithoutInitPing:_GET_ROUTES_WITHOUT_INIT_PING,
-            getInitPingTimeForSession:_GET_INIT_PING_TIME_FOR_ADDRESS,
-            getOptimalRouteEndPoint:_GET_OPTIMAL_ROUTE_ENDPOINT,
-            getFastedEndPoints:_GET_FASTED_EP_ROUTES,
+            getFastedEndPoints:async () => await _getFastedRouteEndPoints(publicKey),
+            getAllPeers:async () => await _getAllRouteEndPoints(publicKey),
+            getBestRoutes:async () => await _getBestRoutes(publicKey),
             avarageInitPingTime:_avarageInitPingTime,
             isUseable:_ADDRESS_ROUTE_IS_AVAIL,
-            getAllPeers:_GET_ALL_PEERS,
         };
 
         // Der Vorgang wird registriert
@@ -397,9 +443,6 @@ const routingManager = (signWithNodeKey) => {
 
     // Signalisiert das ein Paket von einer bestimmten Adresse Empangen wurde
     const _signalPackageReciveFromPKey = async (publicKey, destiPubKey, connObj, timestamp=Date.now()) => {
-        // Debug Log
-        dprintinfo(10, ['Incoming packet from'], [colors.FgYellow, publicKey], ['to'], [colors.FgYellow, destiPubKey], ['was received.']);
-
         // Dem Cache wird Siganlisiert wann zuletzt ein Paket empfangen wurde
         if(await lastPackageRecivedFromAddress.get(publicKey) !== undefined) { await lastPackageRecivedFromAddress.get(publicKey).set(connObj.sessionId(), timestamp); }
         else {
@@ -407,6 +450,26 @@ const routingManager = (signWithNodeKey) => {
             newEntry.set(connObj.sessionId(), timestamp);
             lastPackageRecivedFromAddress.set(publicKey, newEntry);
         }
+
+        // Es wird Signalisiert der WV Vorgang der Signalisierung das ist
+        const currentValue = await justedInitPingTime.get(publicKey);
+        if(currentValue !== undefined) {
+            const cint = await currentValue.get(connObj.sessionId());
+            if(cint !== undefined) { (await justedInitPingTime.get(publicKey)).set(connObj.sessionId(), cint + 1); }
+            else {
+                const newEntry = new Map();
+                newEntry.set(connObj.sessionId(), 1);
+                justedInitPingTime.set(publicKey, newEntry);
+            }
+        }
+        else {
+            const newEntry = new Map();
+            newEntry.set(connObj.sessionId(), 1);
+            justedInitPingTime.set(publicKey, newEntry);
+        }
+
+        // Debug Log
+        dprintinfo(10, ['Incoming packet from'], [colors.FgYellow, publicKey], ['to'], [colors.FgYellow, destiPubKey], ['was received.']);
 
         // Der Vorgang wurde erfolgreich durchgeführt
         return true;
@@ -451,7 +514,7 @@ const routingManager = (signWithNodeKey) => {
 
             // Das Paket wird versendet
             firstConnection.enterPackage(signatedPackage, () => {
-                dprintinfo(10, ['Packet'], [colors.FgRed, getHashFromDict(framePackage).toString('base64')], ['was successfully forwarded from'], [colors.FgMagenta, connObj.sessionId()], ['to'], [colors.FgMagenta, firstConnection.sessionId], ['in'], [colors.FgYellow, Date.now() - cts, colors.Reset, ' ms.'])
+                dprintinfo(10, ['Packet'], [colors.FgRed, getHashFromDict(framePackage).toString('base64')], ['was successfully forwarded from'], [colors.FgMagenta, connObj.sessionId()], ['to'], [colors.FgMagenta, firstConnection.sessionId()], ['in'], [colors.FgYellow, Date.now() - cts, colors.Reset, ' ms.'])
             })
         };
 

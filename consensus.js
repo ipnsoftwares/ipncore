@@ -16,6 +16,9 @@ const i2pBasedTransportSessionDefaultTTL = 120000;
 // Gib die Standard TTL für IP-Verbindungen an
 const ipBasedTransportSessionDefaultTTL = 10000;
 
+// Speichert die Größe des Routing Ping Paketes ab
+const routingPingPackage = 48;
+
 // Gibt an, wieivele Routen zurückgeggeben werden sollen, wenn die Schnellste Routen ermittelt werden
 const routeingMaxPeers = 2;
 
@@ -52,6 +55,7 @@ module.exports = {
     version:current_version,
     network:current_network,
     is_mainnet:is_mainnet,
+    routingPingPackage:routingPingPackage,
     bootnode_public_ip_addresses:bootnode_public_ip_addresses,
     bootnode_public_dns_names:bootnode_public_dns_names,
     main_blocked_public_keys:main_blocked_public_keys,
