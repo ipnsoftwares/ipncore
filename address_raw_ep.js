@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const ADR_EP_STATES = {
     NO_ACTIVE_ROUTES_FROZEN:0,          // Keine Aktiven Routen verfügbar, alle Sockets werden eingefroren und neue Verbindungsanfragen werden in den Wartemodus versetzt
     KILLING_SOCKETS:1,                  // Alle Sockets werden geschlossen, neue Socketanfragen werden abgelehent
-    REINIT:2,                           // Die Adresse muss neu Initalisiert werden, da keine Routen mehr Verfügbar sind
+    CLOSED:2,                           // Die Adresse muss neu Initalisiert werden, da keine Routen mehr Verfügbar sind
     OPEN:3,                             // Gibt an dass das Objekt verwendet werden kann
     ABORTED:4,                          // Gibt an das der Initalisierungsvorgang fehgeschlagen ist
     INITING:5                           // Gibt an dass das Objekt sich in der Vobereitung befindet
@@ -22,11 +22,11 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     // Speichert Offene Ping Vorgänge ab
     const _openPingProcesses = new Map();
 
+    // Speichert alle Offenen Sockets ab
+    const _openSockets = new Map();
+
     // Speichert den Aktuellen Stauts ab
     let objectState = ADR_EP_STATES.INITING;
-
-    // Speichert den Routing Opener Timer ab, diser Timer hält mittels Ping die Route am leben
-    let routeOpenerTimer = null;
 
     // Speichert alle offene Sendevorägnge ab
     let openPackageSendProcess = [];
@@ -34,12 +34,35 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     // Speichert ab, wann das letzte Paket versendet wurde
     let lastPackageSendSuccs = null;
 
-    // Speichert Sitzungen ab, bei welchem derzeit ein Ping Vorgang geöffnet ist
-    let openPingRtripeProcesses = new Map();
+    // Wird verwendet um allen Vorägngen zu Signalisieren dass derzeit keine Routen mehr Verfügbar sind, alle Sockets werden geschlossen
+    const _NO_ROUTES_EVENTS = (cb) => {
+        console.log(_openPingProcesses, _openSockets)
+
+        // Es werden alle Offenen Ping Vorgänge geschlossen
+        for(const otem of Array.from(_openPingProcesses)) {
+            const objtemp = _openPingProcesses.get(otem);
+            if(objtemp === null) continue;
+            objtemp.close();
+        };
+
+        // Es werden alle Offenen Sockets geschlossen
+        for(const otem of Array.from(_openSockets.keys())) {
+
+        };
+
+        cb();
+    };
 
     // Wird ausgeführt wenn keine Peer für diese Adresse verüfgbar ist
-    routeEP.registerEvent('allRoutesForAddressClosed', async (addrPublicKey, deletedSessionId) => {
-        console.log('AD');
+    routeEP.registerEvent('allRoutesForAddressClosed', () => {
+        // Dem Objekt wird Signalisiert dass keine Route verfüfbar ist
+        objectState = ADR_EP_STATES.KILLING_SOCKETS;
+
+        // Der Callback vorgang wird aufgerufen
+        _NO_ROUTES_EVENTS(() => {
+            // Dem Objekt wird Signalisiert dass es erfolgreich geschlossen wurde
+            objectState = ADR_EP_STATES.CLOSED;
+        });
     });
 
     // Signiert ein Paket mit dem Lokalen Schlüssel
@@ -94,13 +117,16 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         // Der Aktuelle Sendevorgang wird zwischengespeichert
         openPackageSendProcess.push(sendProcess);
 
-        // Es wird geprüft ob ein Socketobjekt angegeben wurde, wenn nicht wird geprüft ob die Primäre Route bekannt ist
-        if(socketobj !== null) {
+        // Versendet das eigentliche Paket
+        const _SEND_PACKAGE = (sockoob) => {
             // Das Paket wird an den Übergebenen Socket gesendet
-            socketobj.enterPackage(signatedPackage, (r, porcTime) => {
+            sockoob.enterPackage(signatedPackage, (r, porcTime) => {
                 // Es wird geprüft ob der Vorgang erfolreich war
                 if(r !== true) {
+                    // Der Offene Vorgang wird entfernt
                     openPackageSendProcess = openPackageSendProcess.filter((ele) => { return ele != sendProcess; });
+
+                    // Der Vorgang wird abgerbrochen
                     callback(false);
                     return; 
                 }
@@ -116,26 +142,38 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
                 openPackageSendProcess = openPackageSendProcess.filter((ele) => { return ele != sendProcess; });
 
                 // Der Vorgang ist erfolgreich
-                callback(r, socketobj.cttl, porcTime);
+                callback(r, sockoob.cttl, porcTime);
             });
-        }
+        };
+
+        // Es wird geprüft ob ein Socketobjekt angegeben wurde, wenn nicht wird geprüft ob die Primäre Route bekannt ist
+        if(socketobj !== null) { _SEND_PACKAGE(socketobj); }
         else {
             // Es wird geprüft wie der Objektstatus ist, sollte er nicht Offen sein, wird der Vorgang abgebrochen
             if(objectState !== ADR_EP_STATES.OPEN) {
-                // Der Vorgang wird abgebrochen, der socket wurde noch nicht Vollständig eingerichtet oder ist nicht mehr bereit
-                return;
-            }
+                // Der Vorgang wird entfernt
+                openPackageSendProcess = openPackageSendProcess.filter((ele) => { return ele != sendProcess; });
 
-            // Es wird versucht die Schnellste Route zu ermitteln
-            const optmusRoute = routeEP.getOptimalRouteEndPoint();
-            if(optmusRoute === null) {
-                // Der Vorgang wird abgebrochen, es ist keine Route verfügbar
+                // Der Vorgang wird abgebrochen, der socket wurde noch nicht Vollständig eingerichtet oder ist nicht mehr bereit
                 callback('no_route_avail');
                 return;
             }
 
-            // Das Paket wird gesendet
+            // Es wird versucht die Schnellste Route zu ermitteln
+            routeEP.getOptimalRouteEndPoint().then((optmusRoute) => {
+                // Es wird geprüft ob der Vorgang erfolgreich durchgeführt werden konnte
+                if(optmusRoute === null) {
+                    // Der Vorgang wird entfernt
+                    openPackageSendProcess = openPackageSendProcess.filter((ele) => { return ele != sendProcess; });
 
+                    // Der Vorgang konnte nicht fertigestellt werden
+                    callback('no_route_avail');
+                    return; 
+                }
+
+                // Das Paket wird gesendet
+                _SEND_PACKAGE(optmusRoute);
+            })
         }
     };
 
@@ -183,12 +221,12 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     };
 
     // Startet einen Ping vorgang
-    const _START_PING_PROCESS = (bodySize, socketobj, callback) => {
+    const _START_PING_PROCESS = (bodySize, socketobj, strict, callback) => {
         // Es wird ein zufälliger Wert erzeugt
         const randomByteValues = crypto.randomBytes(bodySize);
 
         // Das Frame wird erstellt
-        const finallyFrame = _COMPLETE_UNSIGNATED_FRAME({ type:'ping', rdata:randomByteValues.toString('base64') });
+        const finallyFrame = _COMPLETE_UNSIGNATED_FRAME({ type:'ping', rdata:randomByteValues.toString('base64'), strict:strict });
 
         // Aus dem RandomHash werden 2 hashes erzeugt
         const frstRandHash = crypto.createHash('sha256').update(randomByteValues).digest();
@@ -200,11 +238,11 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         // Gibt die Zeit an, wielange es gedauert hat, bis es eine Antwort für den Ping gab
         let _PING_PACKAGE_SEND_TIME = null;
 
-        // Wird als Timer ausgeführt, wenn die Zeit abgelaufen ist
+        // Wird als Timer ausgeführt, wenn die Zeit abgelaufen ist, der Vorgang wird zerstört
         const _TIMER_FUNCTION_PROC = () => {
-            // Der Vorgang wird gelöscht
-            _openPingProcesses.delete(secRandHash);
-            callback(false, null, Buffer.from(secRandHash, 'hex').toString('base64'));
+            if(_openPingProcesses.delete(secRandHash) === true) {
+                callback(false, null, Buffer.from(secRandHash, 'hex').toString('base64'));
+            }
         };
 
         // Wird aufgerufen, wenn eine Antwort für den Ping eingetroffen ist
@@ -231,8 +269,17 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             });
         };
 
+        // Beendet den Ping Vorgang Manuell
+        const _CLOSE = () => {
+            if(_openPingProcesses.delete(secRandHash) === true) {
+                if(_OPEN_WAIT_RESPONSE_TIMER !== null) { clearTimeout(_OPEN_WAIT_RESPONSE_TIMER); _OPEN_WAIT_RESPONSE_TIMER = null; }
+                dprintwarning(10, ['The ping process'], [colors.FgRed, getHashFromDict(finallyFrame).toString('base64')], ['was forced to end.']);
+                callback(false, null, Buffer.from(secRandHash, 'hex').toString('base64'));
+            }
+        };
+
         // Speichert den Ping Vorgang ab
-        _openPingProcesses.set(secRandHash, { callResponse:_RESPONSE });
+        _openPingProcesses.set(secRandHash, { callResponse:_RESPONSE, close:_CLOSE });
 
         // Das Ping Paket wird versendet
         dprintinfo(10, ['The ping packet'], [colors.FgRed, getHashFromDict(finallyFrame).toString('base64')], ['is sent']);
@@ -241,7 +288,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             if(state !== true) {
                 // Der Vorgang wird gelöscht
                 _openPingProcesses.delete(secRandHash);
-                callback(false, 'package_sending_error', Buffer.from(secRandHash, 'hex').toString('base64'));
+                callback(false, state, Buffer.from(secRandHash, 'hex').toString('base64'));
                 return;
             }
 
@@ -254,11 +301,6 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             // Log
             dprintinfo(10, ['The ping packet'], [colors.FgRed, getHashFromDict(finallyFrame).toString('base64')], ['sent in'], [colors.FgMagenta, ptime], ['ms, ttl ='], [colors.FgMagenta, tttl]);
         });
-    };
-
-    // Wird verwendet um den Aktuellen Stauts des Objekts auszugeben
-    const _GET_OBJECT_STATE = () => {
-
     };
 
     // Führt den Initaliserungsping aus, die 2 Schnellsten Routen werden ermittelt
@@ -280,7 +322,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
         // Das Paket wird an die einzelenen Nodes gesendet
         for(const routeItem of froutes) {
-            _START_PING_PROCESS(consensus.routingPingPackage, routeItem, (state, pTime, procHash) => {
+            _START_PING_PROCESS(consensus.routingPingPackage, routeItem, true, (state, pTime, procHash) => {
                 // Es wird ein Vorgang raufgezählt
                 currentPackage += 1;
 
@@ -308,100 +350,12 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         }
     };
 
-    // Wird verwendet um die Route am leben zu halten
-    const _OPEN_ROUTE_PINGING = async (lastPing, callb) => {
-        // Die Schnellsten Routen werden vom Routing Manager abgerufen
-        let froutes = await routeEP.getBestRoutes();
-
-        // Gibt an ob das erste Paket empfangen wurde
-        let firstRongRecives = null, currentPackage = 0, totalSuccs = 0, notResolved = 0;
-
-        // Gibt an ob die erste Antwort bereits empfangen wurde
-        let firstResponseRetrived = false;
-
-        // Es wird geprüft ob Routen mit einem InitPing abgerufen werden konnten, wenn nicht werden alle bekannten Routen abgerufen
-        if(froutes === null) {
-            // Es konnten eine Routen mit InitPingTime ermittelt werden
-            froutes = await routeEP.getAllPeers();
-
-            // Es wird geprüft ob alternative Routen abgerufen werden konnten
-            if(froutes === null) { return; }
-        }
-
-        // Das Paket wird an die einzelenen Nodes gesendet
-        for(const routeItem of froutes) {
-            _START_PING_PROCESS(consensus.routingPingPackage, routeItem, (state, pTime, procHash) => {
-                // Es wird ein Vorgang raufgezählt
-                currentPackage += 1;
-
-                // Es wird geprüft ob der Vorgang erfolgreich durchgeführt werden konnte
-                if(state === true) {
-                    // Es wird geprüft ob es sich um das erste Paket handelt
-                    if(firstRongRecives === null) {
-                        // Die Paketanzahl wird hochgezählt
-                        totalSuccs += 1;
-
-                        // Die Aktuelle Zeit wird ermittelt
-                        firstRongRecives = Date.now();
-
-                        // Das Objekt wird als Einsatzfähug Makiert
-                        objectState = ADR_EP_STATES.OPEN;
-                    }
-                }
-                else {
-                    // das Paket wird als Nicht beantwortet Markiert
-                    notResolved += 1;
-
-                    // Es ist keine Antwort von dem Peer empfangen wurden
-                    routeEP.signalLossPackage(routeItem.sessionId());
-                }
-            });
-
-            // Es wird geprüft ob bereits eine Antwort empfangen wurde, wenn ja wird der Vorgang abgebrochen
-            if(firstRongRecives !== null) break;
-        }
-
-        // Der Vorgang wurde erfolgreich druchgeführt
-        callb();
-    };
-
     // Gibt die Basis Funktionen zurück
     const _BASE_FUNCTIONS = {
-        getState:_GET_OBJECT_STATE,                             // Gibt den Aktuellen Status des Objektes aus
+        getState:() => objectState,
         ping:{
-            
-        },
-    };
-
-    // Wird als Timer ausgeführt um aller 5 Sekunden einen Ping abzusenden um die Route zu überprüfen
-    const _ROUTE_OPENNER_PING = () => {
-        // Es wird ein Zeitstempel ermittelt
-        const ctimestamp = Date.now();
-
-        // Es wird geprüft, wann das Paket das letztemal gesendet wurde
-        if(lastPackageSendSuccs !== null) {
-            // Es wird geprüft ob der Vorgäng länger 15 Sekunden in der Vergangenheit
-            if(ctimestamp - lastPackageSendSuccs >= 15000) {
-                // Es wird geprüft ob derzeit ein Offener Sendevorgang vorhanden ist
-                if(Array.from(openPingRtripeProcesses).length === 0) {
-                    // Die Routen werden am leben gehalten
-                    _OPEN_ROUTE_PINGING(lastPackageSendSuccs, () => { routeOpenerTimer = setTimeout(_ROUTE_OPENNER_PING, 5000); });
-                    return;
-                }
-                else {
-                    // Der Timer wird neugestartet
-                    routeOpenerTimer = setTimeout(_ROUTE_OPENNER_PING, 2500);
-                }
-            }
-            else {
-                // Der Timer wird neugestartet
-                routeOpenerTimer = setTimeout(_ROUTE_OPENNER_PING, 1000);
-            }
-        }
-        else {
-            // Der Timer wird neugestartet
-            routeOpenerTimer = setTimeout(_ROUTE_OPENNER_PING, 1000);
-        }
+            ssingle:(callb, bsize=96, strict=false) => _START_PING_PROCESS(bsize, null, strict, callb),
+        }, 
     };
 
     // Es wird geprüft ob eine Route für die Adresse vorhanden ist
@@ -414,11 +368,11 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             // Es wird geprüft ob der Vorgang erfolgreich durchgeführt werden konnte
             if(froutes !== true) { rcb('no_fast_routes_avail'); return; }
 
+            // Der Status des Paketes wird auf geöffnet gesetzt
+            objectState = ADR_EP_STATES.OPEN;
+
             // Der Vorgang wurde erfolgreich druchgeführt
             rcb(null, _BASE_FUNCTIONS);
-
-            // Der Routen Pinger wird geöffnet
-            routeOpenerTimer = setTimeout(_ROUTE_OPENNER_PING, 5000);
         });
     });
 

@@ -44,6 +44,9 @@ const routingManager = (signWithNodeKey) => {
     // Speichert ab wann das letztemal ein Paket von der Adresse XYZ Empfangen wurde
     var lastPackageRecivedFromAddress = new Map();
 
+    // Speichert ab wann das letzte Paket an die Adresse XYZ über die Sitzung XYZ gesendet wurde
+    var lastPackageSendToAddress = new Map();
+
     // Wird verwendet um eine Route hinzuzufügen
     const _addRotute = async (sessionId, publicKey, routeInitTime, autoDeleteTime=null) => {
         // Es wird ein Zeitstempel für den Vorgang erzeugt
@@ -235,7 +238,7 @@ const routingManager = (signWithNodeKey) => {
     };
 
     // Gibt die Verlustrate einer Verbindung an
-    const _getLossRate = async (publicKey) => {
+    const _getLossRate = async (publicKey, sessionId) => {
 
     };
 
@@ -245,7 +248,7 @@ const routingManager = (signWithNodeKey) => {
         const tsid = pkeyToSessionEP.get(publicKey);
         if(tsid === undefined) return [];
 
-        // Es werden alle Einträge aus der Datenbank abgerufen
+        // Es werden alle Einträge aus dem Cache abgerufen
         var returnValue = [];
         for(const otem of tsid){ returnValue.push(sessionEndPoints.get(otem)); };
 
@@ -304,8 +307,20 @@ const routingManager = (signWithNodeKey) => {
             fcklTotalReturnValue.push(newObj);
         };
 
+        // Es wird ermittelt, wann die letzten Pakete empfangen wurde
+        let nopLastReturn = [];
+        for(const obj of fcklTotalReturnValue) {
+            nopLastReturn.push({ ...obj, lastRecive:null });
+        };
+
+        // Die Verlustrate der einzelnen Verbindungen wird ermittelt
+        let finalLastReturn = [];
+        for(const obj of nopLastReturn) {
+            finalLastReturn.push({ ...obj, lossRate:null });
+        };
+
         // Die Ermitelten Peers werden zurückgegeben
-        return fcklTotalReturnValue;
+        return finalLastReturn;
     };
 
     // Gibt die Schenllsten Routen für eine Verbindung aus
@@ -336,7 +351,15 @@ const routingManager = (signWithNodeKey) => {
 
     // Signalisiert das ein Zusammenhängender Sende und Lesevorgang gescheitert ist
     const _signalLossPackage = async (publicKey, sessionId) => {
-        // Es wird geprüft ob es einen Passenden Eintrag für dien PublicKey in Kombination mit der SitzungsID gibt, wenn ja wird Signalisiert wann das letzte Package Losst aufgetreten ist
+        // Es wird Signalisiert, dass das Paket nicht versendet werden konnte
+        if(await losstPackagesOnRoutes.get(publicKey) !== undefined) {
+            await losstPackagesOnRoutes.get(publicKey).set(sessionId, Date.now()); 
+        }
+        else {
+            const newEntry = new Map();
+            newEntry.set(sessionId, Date.now());
+            losstPackagesOnRoutes.set(publicKey, newEntry);
+        }
 
         // Es wird geprüft ob es sich um die dritte Lost Meldung hintereinadner handelt, wenn ja wird die Route für diesen EndPunkt gelöscht
         console.log('PACKAGE_LOSS');
@@ -347,6 +370,16 @@ const routingManager = (signWithNodeKey) => {
         // Es werden die Schnellsten Route abgerufen
         const fastedRoutes = await _getFastedRouteEndPoints(publicKey);
         if(fastedRoutes === null) return null;
+
+        // Die Verbindungen werden nach der Package Loss Rate Sortiert
+        let unlostedConnections = [], sortedConnections = [];
+        for(const otem of fastedRoutes) {
+            // Es wird geprüft ob es für die Verbindung eine LossRate gibt
+        }
+
+        // Es wird geprüft, von welcher der Verbindungen zuletzt ein Paket einging
+
+        // Es wird ein Gesamtscore für die Verbindung ermittelt, nach diesem Score werden die Verbindungen sortiert
 
         // Die erste Verbindung wird ausgegeben
         return fastedRoutes[0];
@@ -439,6 +472,11 @@ const routingManager = (signWithNodeKey) => {
             initPingTime.set(publicKey, newEntry);
             dprintok(10, ['The routing ping for address'], [colors.FgYellow, publicKey], ['on session'], [colors.FgMagenta, sessionId], ['is'], [colors.FgYellow, pingTime], ['ms.']);
         }
+    };
+
+    // Signalisiert dass ein Paket an eine bestimmte Adresse erfolgreich übertragen wurde
+    const _signalPackageTransferedToPKey = async (publicKey, destPubKey, connObj, timestamp=Date.now()) => {
+
     };
 
     // Signalisiert das ein Paket von einer bestimmten Adresse Empangen wurde
@@ -535,6 +573,7 @@ const routingManager = (signWithNodeKey) => {
     const _enterOutgoingLayer2Packages = (destination, framePackage, callbackSend, revalp=1, directEpObjectToSend=null) => {
         // Es wird geprüft ob es sich bei der Empfänger Adresse um eine bekannte Adresse handelt
         const endPointSession = pkeyToSessionEP.get(destination);
+        console.log(destination)
         if(endPointSession === undefined) {
             console.log('PACKAGE_DROPED_UNKOWN_DESTINATION');
             return;

@@ -6,6 +6,7 @@ const { wsConnectTo, wsServer } = require('./wss');
 const consensus = require('./consensus');
 const { log } = require('console');
 const crypto = require('crypto');
+const { strict } = require('assert');
 const URL = require("url").URL;
 
 
@@ -447,6 +448,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Es wird ein Hash aus den Zufälligen Daten erstellt
             const packageRandomHash = crypto.createHash('sha256').update(Buffer.from(decryptedPackage.rdata, 'base64')).digest('hex');
 
+            // Der Strict Wert wird ermittelt
+            const strictMode = decryptedPackage.strict;
+
             // Es wird eine Zufällige Nonce erstellt, mit dieser Nonce werden die Daten verschlüsselt
             const randomValue = crypto.randomBytes(24);
 
@@ -468,14 +472,27 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Das Frame wird Signiert
             const signatedFrame = _SIGN_FRAME(preLayer2Frame);
 
-            // Das Layer 1 Paket wird gebaut
-            const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:signatedFrame };
+            // Es wird geprüft ob es sich um ein Striktes Paket handelt, wenn ja wird es über die Verbindung zurückgesendet, über die es Empfangen wurde
+            if(strictMode === true) {
+                // Das Layer 1 Paket wird gebaut
+                const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:signatedFrame };
 
-            // Das Paket wird Signiert
-            const signatedPackage = _SIGN_PRE_PACKAGE(prePackage);
+                // Das Paket wird Signiert
+                const signatedPackage = _SIGN_PRE_PACKAGE(prePackage);
 
-            // Das Paket wird an den Peer zurückgesendet von dem es gekommen ist
-            connObj.sendPackage(signatedPackage, (r) => { callback(r); });
+                // Das Paket wird direkt zurück an den Absender gesendet
+                connObj.sendPackage(signatedPackage, (r) => {
+                    dprintinfo(10, ['Ping'], [colors.FgRed, getHashFromDict(decryptedPackage).toString('base64')], ['returned successfully.']);
+                    callback(r);
+                });
+            }
+            else {
+                // Das Paket wird an den Routing Manager übergeben
+                _rManager.enterOutgoingLayer2Packages(packageFrame.source, signatedFrame, (r) => {
+                    dprintinfo(10, ['Ping'], [colors.FgRed, getHashFromDict(decryptedPackage).toString('base64')], ['returned successfully.']);
+                    callback(r);
+                }, 1);
+            }
 
             // Die Aufgabe wurde erfolgreich fertigestellt
             return;
@@ -499,7 +516,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         .update(Buffer.from(localPrivateKeyPair.publicKey))
         .digest('hex');
 
-        // Es wird geprüft ob es bereits einen Offenen RAW Address EndPoint gibt
+        // Es wird geprüft ob es einen Offenen RAW Address EndPoint gibt
         const openEP = _openRawEndPoints.get(endPointHash);
         if(openEP === undefined) {
             callback(false);
