@@ -17,7 +17,7 @@ const i2pBasedTransportSessionDefaultTTL = 120000;
 const ipBasedTransportSessionDefaultTTL = 10000;
 
 // Speichert die Größe des Routing Ping Paketes ab
-const routingPingPackage = 48;
+const routingPingPackage = 96;
 
 // Gibt an, wieivele Routen zurückgeggeben werden sollen, wenn die Schnellste Routen ermittelt werden
 const routeingMaxPeers = 2;
@@ -38,6 +38,23 @@ const unix_socket_root_path = `$TMPDIR/${current_network.toLowerCase()}/root_soc
 
 // Speichert ab, ob es sich um eine Testversion handelt
 const is_mainnet = false;
+
+// Gibt einzelne INIPS an, welche unterstützt werden
+const activeInips = [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,                                                 // INIP12 - Bitcoin Unterstützung
+
+];
 
 // Speichert alle IP-Adressen der Bootnodes
 const bootnode_public_ip_addresses = [

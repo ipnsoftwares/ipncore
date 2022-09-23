@@ -138,11 +138,15 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
                 }
                 else { lastPackageSendSuccs = currentTimeStamp; }
 
-                // Der Vorgang wird entfernt
-                openPackageSendProcess = openPackageSendProcess.filter((ele) => { return ele != sendProcess; });
+                // Dem Routingmanager wird Signalisiert, wann das Paket empfangen wurde
+                routeEP.signalPackageSend(sigantedFrame.source, sockoob, Date.now())
+                .then(() => {
+                    // Der Vorgang wird entfernt
+                    openPackageSendProcess = openPackageSendProcess.filter((ele) => { return ele != sendProcess; });
 
-                // Der Vorgang ist erfolgreich
-                callback(r, sockoob.cttl, porcTime);
+                    // Der Vorgang wurde erfolgreich fertigestellt
+                    callback(r, sockoob.cttl, porcTime, sockoob.sessionId());
+                });
             });
         };
 
@@ -238,10 +242,16 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         // Gibt die Zeit an, wielange es gedauert hat, bis es eine Antwort für den Ping gab
         let _PING_PACKAGE_SEND_TIME = null;
 
+        // Speichert die SessionID ab, an welche das Paket übertragen wurde
+        let _SEND_OVER_SESSION_ID = null;
+
         // Wird als Timer ausgeführt, wenn die Zeit abgelaufen ist, der Vorgang wird zerstört
         const _TIMER_FUNCTION_PROC = () => {
             if(_openPingProcesses.delete(secRandHash) === true) {
-                callback(false, null, Buffer.from(secRandHash, 'hex').toString('base64'));
+                routeEP.signalLossPackage(_SEND_OVER_SESSION_ID)
+                .then(() => {
+                    callback(false, null, Buffer.from(secRandHash, 'hex').toString('base64'));
+                })
             }
         };
 
@@ -283,7 +293,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
         // Das Ping Paket wird versendet
         dprintinfo(10, ['The ping packet'], [colors.FgRed, getHashFromDict(finallyFrame).toString('base64')], ['is sent']);
-        _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, socketobj, (state, tttl, ptime) => {
+        _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, socketobj, (state, tttl, ptime, sendSessionId) => {
             // Es wird geprüft ob der Ping Vorgang erfolgreich durchgeführt wurde
             if(state !== true) {
                 // Der Vorgang wird gelöscht
@@ -291,6 +301,9 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
                 callback(false, state, Buffer.from(secRandHash, 'hex').toString('base64'));
                 return;
             }
+
+            // Speichert die SessionID ab, an welche das Paket gesendet wurde
+            _SEND_OVER_SESSION_ID = sendSessionId;
 
             // Speichert die Zeit ab, wann das Paket empfangen wurde
             _PING_PACKAGE_SEND_TIME = Date.now();

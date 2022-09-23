@@ -38,6 +38,9 @@ const routingManager = (signWithNodeKey) => {
     // Speichert ab, wieoft die InitZeit Justiert wurde
     var justedInitPingTime = new Map();
 
+    // Speichert ab, weiviele Pakete versendet wurden
+    var totalSendPackages = new Map();
+
     // Speichert alle Fehlgeschlagenen Vorgänge ab
     var losstPackagesOnRoutes = new Map();
 
@@ -237,9 +240,62 @@ const routingManager = (signWithNodeKey) => {
         return false;
     };
 
-    // Gibt die Verlustrate einer Verbindung an
-    const _getLossRate = async (publicKey, sessionId) => {
+    // Gibt an, wieviele Pakete bereits an diese Verbindung gesendet wurden
+    const _getTotalPackagesSendToPKeyAndSession = async (publicKey, sessionId) => {
+        let resolved = await totalSendPackages.get(publicKey) ;
+        if(resolved === undefined) return null;
+        const reso = resolved.get(sessionId);
+        if(reso === undefined) return null;
+        return reso;
+    };
 
+    // Gibt an, wieviele Pakete für diese Verbindung verloren gegangen sind
+    const _getLosstPackagesForAddressAndSession = async (publicKey, sessionId) => {
+        // Es wird Signalisiert, dass das Paket nicht versendet werden konnte
+        if(await losstPackagesOnRoutes.get(publicKey) !== undefined) {
+            const v = await losstPackagesOnRoutes.get(publicKey).get(sessionId);
+            return v;
+        }
+
+        // Es wurde kein Paketverlust gemeldet
+        return null;
+    };
+
+    // Gibt die Verlustrate einer Verbindung an
+    const _getLossRateForAddressAndSession = async (publicKey, sessionId) => {
+        // Die insgesamt gesendeten Pakete werden ermittelt
+        const totalSend = await _getTotalPackagesSendToPKeyAndSession(publicKey, sessionId);
+        if(totalSend === null) return 0;
+
+        // Die Anazhl der Verlorengegenangen Pakete wird ermittelt
+        const totalLosstPackages = await _getLosstPackagesForAddressAndSession(publicKey, sessionId);
+        if(totalLosstPackages === null) return 0;
+        if(totalLosstPackages === 0) return 0;
+
+        // Die Verlustrate wird berechnet
+        return ((totalLosstPackages / totalSendPackages) * 100);
+    };
+
+    // Gibt an, wann das letzte Paket für diese Verbindung gesendet wurde
+    const _lastPackageWasSendForAddrAndSession = async (publicKey, sessionId) => {
+        const f = await lastPackageSendToAddress.get(publicKey);
+        if(f === undefined) return null;
+        const d = await f.get(sessionId);
+        if(d === undefined) return null;
+        return d;
+    };
+
+    // Gibt an, wann das letzte Paket für diese Verbindung empfangen wurde
+    const _lastPackageWasReciveForAddressAndSession = async (publicKey, sessionId) => {
+        // Dem Cache wird Siganlisiert wann zuletzt ein Paket empfangen wurde
+        if(await lastPackageRecivedFromAddress.get(publicKey) !== undefined) {
+            const atelv = await lastPackageRecivedFromAddress.get(publicKey).get(sessionId); 
+            if(atelv === undefined) return null;
+            return atelv;
+        }
+
+        // Es wurde kein Eintrag gefunden
+        return null;
     };
 
     // Gibt alle möglichen Peers für eine Route aus
@@ -252,9 +308,16 @@ const routingManager = (signWithNodeKey) => {
         var returnValue = [];
         for(const otem of tsid){ returnValue.push(sessionEndPoints.get(otem)); };
 
+        // Die Verlustrate der einzelnen Verbindungen wird ermittelt
+        let lossRate = [];
+        for(const obj of returnValue) {
+            const arivedLosstRate = await _getLossRateForAddressAndSession(publicKey, obj.sessionId());
+            lossRate.push({ ...obj, lossRate:arivedLosstRate });
+        };
+
         // Die TTL für die Peers wird ermittelt
         let optimizedPeers = [];
-        for(const peerItem of returnValue) {
+        for(const peerItem of lossRate) {
             // Es wird versucht die Aktuelle InitPingTime für die Verbindung abzurufen
             const cip = await initPingTime.get(publicKey);
             if(cip !== undefined) {
@@ -310,21 +373,17 @@ const routingManager = (signWithNodeKey) => {
         // Es wird ermittelt, wann die letzten Pakete empfangen wurde
         let nopLastReturn = [];
         for(const obj of fcklTotalReturnValue) {
-            nopLastReturn.push({ ...obj, lastRecive:null });
-        };
-
-        // Die Verlustrate der einzelnen Verbindungen wird ermittelt
-        let finalLastReturn = [];
-        for(const obj of nopLastReturn) {
-            finalLastReturn.push({ ...obj, lossRate:null });
+            const lastSend = await _lastPackageWasSendForAddrAndSession(publicKey, obj.sessionId());
+            const lastRecive = await _lastPackageWasReciveForAddressAndSession(publicKey, obj.sessionId());
+            nopLastReturn.push({ ...obj, lastRecive:lastRecive, lastSend:lastSend });
         };
 
         // Die Ermitelten Peers werden zurückgegeben
-        return finalLastReturn;
+        return nopLastReturn;
     };
 
     // Gibt die Schenllsten Routen für eine Verbindung aus
-    const _getFastedRouteEndPoints = async (publicKey) => {
+    const _getFastedRouteEndPoints = async (publicKey, ignoreInitTime=false) => {
         // Es wird versucht alle Verfügbaren Routen abzurufen
         const returnValue = await _getAllRouteEndPoints(publicKey);
         if(returnValue === null) return null;
@@ -353,11 +412,12 @@ const routingManager = (signWithNodeKey) => {
     const _signalLossPackage = async (publicKey, sessionId) => {
         // Es wird Signalisiert, dass das Paket nicht versendet werden konnte
         if(await losstPackagesOnRoutes.get(publicKey) !== undefined) {
-            await losstPackagesOnRoutes.get(publicKey).set(sessionId, Date.now()); 
+            const value = await losstPackagesOnRoutes.get(publicKey).get(sessionId);
+            await losstPackagesOnRoutes.get(publicKey).set(sessionId, value + 1); 
         }
         else {
             const newEntry = new Map();
-            newEntry.set(sessionId, Date.now());
+            newEntry.set(sessionId, 1);
             losstPackagesOnRoutes.set(publicKey, newEntry);
         }
 
@@ -371,22 +431,47 @@ const routingManager = (signWithNodeKey) => {
         const fastedRoutes = await _getFastedRouteEndPoints(publicKey);
         if(fastedRoutes === null) return null;
 
-        // Die Verbindungen werden nach der Package Loss Rate Sortiert
-        let unlostedConnections = [], sortedConnections = [];
-        for(const otem of fastedRoutes) {
-            // Es wird geprüft ob es für die Verbindung eine LossRate gibt
+        // Es wird der Aktuelle Zeitstempel abgespeichert
+        const currentTimestamp = Date.now();
+        console.log(fastedRoutes);
+
+        // Es werden alle Verbindungen herausgefilter an die noch keine Daten gesendet wurden
+        const filteredConnectionsWithoutSendPackages = fastedRoutes.filter((r) => { if(r.lastSend === null) return r; });
+        if(filteredConnectionsWithoutSendPackages.length > 0) {
+            // Es wird geprüft ob nur eine Verbindung verfügbar ist
+            if(filteredConnectionsWithoutSendPackages.length === 1) { return filteredConnectionsWithoutSendPackages[0]; }
+
+            // Es wird ermittelt welcher der Verbindungen am längsten Vorhanden ist
+            const longestConnected = [];
+            for(const otem of filteredConnectionsWithoutSendPackages) {
+                console.log('A:',otem);
+            }
+        }
+        else {
+            // Es werden alle Verbindungn herausgesucht auf den noch keine Daten gesendeten wurden
+            const filteredConnectionsWithoutRecivedData = fastedRoutes.filter((r) => { if(r.lastRecive === null) return r; });
+            if(filteredConnectionsWithoutRecivedData.length > 0) {
+                // Es wird geprüft ob nur eine Verbindung verfügbar ist
+                if(filteredConnectionsWithoutRecivedData.length === 1) { return filteredConnectionsWithoutRecivedData[0]; }
+
+                // Es wird ermittelt welcher der Verbindungen am Vorhanden ist ohne Daten empfangen zu haben
+                const filtr = filteredConnectionsWithoutRecivedData.filter((r) => {
+                    console.log(r);
+                    return r;
+                });
+            }
+            else {
+                console.log('DR');
+            }
         }
 
-        // Es wird geprüft, von welcher der Verbindungen zuletzt ein Paket einging
-
-        // Es wird ein Gesamtscore für die Verbindung ermittelt, nach diesem Score werden die Verbindungen sortiert
-
         // Die erste Verbindung wird ausgegeben
-        return fastedRoutes[0];
+        const r = fastedRoutes[0];
+        return r;
     };
 
     // Gibt besten Route für die Verbindung aus
-    const _getBestRoutes = async (publicKey) => {
+    const _getBestRoutes = async (publicKey, options=null) => {
         // Es werden die Schnellsten Route abgerufen
         const fastedRoutes = await _getFastedRouteEndPoints(publicKey);
         if(fastedRoutes === null) return null;
@@ -434,6 +519,7 @@ const routingManager = (signWithNodeKey) => {
 
         // Wird als Funktionen zurückgegeben
         const _OBJ_FUNCTIONS = {
+            signalPackageSend:async (soruce, connobj, timest=Date.now()) => await _signalPackageTransferedToPKey(soruce, publicKey, connobj, timest),
             getInitPingTimeForSession:async (sessionId) => _getInitPingTime(publicKey, sessionId),
             signalLossPackage:async (sessionId) => await _signalLossPackage(publicKey, sessionId),
             getOptimalRouteEndPoint:async () => await _getOptimalRouteForAddress(publicKey),
@@ -476,7 +562,36 @@ const routingManager = (signWithNodeKey) => {
 
     // Signalisiert dass ein Paket an eine bestimmte Adresse erfolgreich übertragen wurde
     const _signalPackageTransferedToPKey = async (publicKey, destPubKey, connObj, timestamp=Date.now()) => {
+        // Dem Cache wird Siganlisiert wann zuletzt ein Paket empfangen wurde
+        if(await lastPackageSendToAddress.get(destPubKey) !== undefined) { await lastPackageSendToAddress.get(destPubKey).set(connObj.sessionId(), timestamp); }
+        else {
+            const newEntry = new Map();
+            newEntry.set(connObj.sessionId(), timestamp);
+            lastPackageSendToAddress.set(destPubKey, newEntry);
+        }
 
+        // Es wird Signalisiert der WV Vorgang der Signalisierung das ist
+        const currentValue = await totalSendPackages.get(destPubKey);
+        if(currentValue !== undefined) {
+            const cint = await currentValue.get(connObj.sessionId());
+            if(cint !== undefined) { (await totalSendPackages.get(destPubKey)).set(connObj.sessionId(), cint + 1); }
+            else {
+                const newEntry = new Map();
+                newEntry.set(connObj.sessionId(), 1);
+                totalSendPackages.set(destPubKey, newEntry);
+            }
+        }
+        else {
+            const newEntry = new Map();
+            newEntry.set(connObj.sessionId(), 1);
+            totalSendPackages.set(destPubKey, newEntry);
+        }
+
+        // Debug Log
+        dprintinfo(10, ['Outgoing packet from'], [colors.FgYellow, publicKey], ['to'], [colors.FgYellow, destPubKey], ['was send']);
+
+        // Der Vorgang wurde erfolgreich durchgeführt
+        return true;
     };
 
     // Signalisiert das ein Paket von einer bestimmten Adresse Empangen wurde
@@ -507,7 +622,7 @@ const routingManager = (signWithNodeKey) => {
         }
 
         // Debug Log
-        dprintinfo(10, ['Incoming packet from'], [colors.FgYellow, publicKey], ['to'], [colors.FgYellow, destiPubKey], ['was received.']);
+        dprintinfo(10, ['Incoming packet from'], [colors.FgYellow, publicKey], ['to'], [colors.FgYellow, destiPubKey], ['was received']);
 
         // Der Vorgang wurde erfolgreich durchgeführt
         return true;
@@ -677,6 +792,7 @@ const routingManager = (signWithNodeKey) => {
         signalPackageReciveFromPKey:_signalPackageReciveFromPKey,
         enterOutgoingLayer2Packages:_enterOutgoingLayer2Packages,
         enterIncommingLayer2Packages:_enterIncommingLayer2Packages,
+        signalPackageTransferedToPKey:_signalPackageTransferedToPKey
     };
 };
 

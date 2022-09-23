@@ -482,8 +482,11 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
                 // Das Paket wird direkt zurück an den Absender gesendet
                 connObj.sendPackage(signatedPackage, (r) => {
-                    dprintinfo(10, ['Ping'], [colors.FgRed, getHashFromDict(decryptedPackage).toString('base64')], ['returned successfully.']);
-                    callback(r);
+                    // Dem Routing Manager wird Siganlisiert dass das Paket erfolgreich übertragen wurden
+                    _rManager.signalPackageTransferedToPKey(packageFrame.destination, packageFrame.source, connObj).then(() => {
+                        dprintinfo(10, ['Ping'], [colors.FgRed, getHashFromDict(decryptedPackage).toString('base64')], ['returned successfully.']);
+                        callback(r);
+                    })
                 });
             }
             else {
@@ -1125,7 +1128,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Wird verwendet um eine Adressroute abzufagen
-    const initAddressRoute = (publicKey, callback=null, maxRecivingResponses=1, timeout=60000) => {
+    const initAddressRoute = (publicKey, callback=null, maxRecivingResponses=1, timeout=consensus.ttlForRoutingRequest) => {
         // Es wird geprüft ob es sich um die Lokale Adresse handelt, wenn ja wird der Vorgang abgerbrochen!
         if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === publicKey) {
             callback('aborted_is_local_address');
