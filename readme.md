@@ -30,8 +30,6 @@
 - [ ] API's / Full-Libraries:
   - [ ] [Webbrowser - Bridge (INIP0015)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0015_de.mediawiki)
   - [ ] Javascript / NodeJS
-  - [ ] Java / Kotlin
-  - [ ] C / C++
   - [ ] Python
   - [ ] Rust
   - [ ] C#
