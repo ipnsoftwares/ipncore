@@ -309,7 +309,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             _PING_PACKAGE_SEND_TIME = Date.now();
 
             // Der Timer für diesen Ping wird gestartet
-            _OPEN_WAIT_RESPONSE_TIMER = setTimeout(_TIMER_FUNCTION_PROC, tttl*3);
+            _OPEN_WAIT_RESPONSE_TIMER = setTimeout(_TIMER_FUNCTION_PROC, tttl);
 
             // Log
             dprintinfo(10, ['The ping packet'], [colors.FgRed, getHashFromDict(finallyFrame).toString('base64')], ['sent in'], [colors.FgMagenta, ptime], ['ms, ttl ='], [colors.FgMagenta, tttl]);

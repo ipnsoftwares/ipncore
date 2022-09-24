@@ -8,25 +8,28 @@ const current_version = 10000000;
 const current_network = 'IPN';
 
 // Gib die Standard TTL für Tor-Verbindungen an
-const torBasedTransportSessionDefaultTTL = 120000;
+const tor_based_transport_session_default_ttl = 120000;
 
 // Gib die Standard TTL für I2P-Verbindungen an
-const i2pBasedTransportSessionDefaultTTL = 120000;
+const i2p_based_transport_session_default_ttl = 120000;
 
 // Gib die Standard TTL für IP-Verbindungen an
-const ipBasedTransportSessionDefaultTTL = 10000;
+const ip_based_transport_session_default_ttl = 10000;
 
 // Speichert die Größe des Routing Ping Paketes ab
 const routingPingPackage = 96;
 
 // Gibt an, wieivele Routen zurückgeggeben werden sollen, wenn die Schnellste Routen ermittelt werden
-const routeingMaxPeers = 2;
+const routeing_max_peers = 2;
 
 // Speichert ab, aller wieviel MS ein ReRouting durchgeführt werden soll
-const reRoutingTime = 15000;
+const re_routing_time = 15000;
 
 // Gibt an, wielange ein Routing Request mmaximal gültig ist
-const ttlForRoutingRequest = 120000;
+const ttl_for_routing_request = 120000;
+
+// Speichert die Maxiamle größe für Layer 1 Pakete ab
+const max_package_byte_size = 1200000;
 
 // Gibt den Pfad des Unix Sockets für die Root freie API an
 const unix_socket_none_root_osx_path = `$TMPDIR/${current_network.toLowerCase()}/none_root_socket`;
@@ -39,20 +42,26 @@ const unix_socket_root_path = `$TMPDIR/${current_network.toLowerCase()}/root_soc
 // Speichert ab, ob es sich um eine Testversion handelt
 const is_mainnet = false;
 
+// Speichert die DNS-Server ab, welche verwendet werden sollen um Anfragen an das Internet zu stellen
+const dns_servers = [
+    "8.8.8.8",
+    "1.1.1.1"
+];
+
 // Gibt einzelne INIPS an, welche unterstützt werden
-const activeInips = [
-    1,
-    2,
-    3,
-    4,
-    5,
-    6,
-    7,
-    8,
-    9,
-    10,
-    11,
-    12,                                                 // INIP12 - Bitcoin Unterstützung
+const active_inips = [
+    1,                                                  // INIP001 - Artemis Routing Protkoll (Einfaches Routing Protokoll)
+    2,                                                  // INIP002 - IP-Basierte Kommunikation über Websockets
+    3,                                                  // INIP003 - Bootnode Protokoll, ermöglicht das einwählen in das IPN-Netzwerk
+    4,                                                  // INIP004 - Kryptographische Standards
+    5,                                                  // INIP005 - Layer 1 und Layer 2 Pakete
+    6,                                                  // INIP006
+    7,                                                  // INIP007
+    8,                                                  // INIP008
+    9,                                                  // INIP009
+    10,                                                 // INIP010
+    11,                                                 // INIP011
+    12,                                                 // INIP012 - Bitcoin Unterstützung
 
 ];
 
@@ -74,21 +83,24 @@ const main_blocked_public_keys = [
 
 // Die Variabeln werden Export
 module.exports = {
-    sversion:smallest_version,
-    version:current_version,
-    network:current_network,
-    is_mainnet:is_mainnet,
-    routingPingPackage:routingPingPackage,
     bootnode_public_ip_addresses:bootnode_public_ip_addresses,
     bootnode_public_dns_names:bootnode_public_dns_names,
     main_blocked_public_keys:main_blocked_public_keys,
-    reRoutingTime:reRoutingTime,
-    ttlForRoutingRequest:ttlForRoutingRequest,
+    ttl_for_routing_request:ttl_for_routing_request,
+    max_package_byte_size:max_package_byte_size,
+    routingPingPackage:routingPingPackage,
+    routeing_max_peers:routeing_max_peers,
+    re_routing_time:re_routing_time,
+    active_inips:active_inips,
+    sversion:smallest_version,
+    version:current_version,
+    network:current_network,
+    dns_servers:dns_servers,
+    is_mainnet:is_mainnet,
     defaults:{
-        ipBasedTransportSessionDefaultTTL:ipBasedTransportSessionDefaultTTL,
-        torBasedTransportSessionDefaultTTL:torBasedTransportSessionDefaultTTL,
-        i2pBasedTransportSessionDefaultTTL:i2pBasedTransportSessionDefaultTTL,
-        routeingMaxPeers:routeingMaxPeers
+        ip_based_transport_session_default_ttl:ip_based_transport_session_default_ttl,
+        tor_based_transport_session_default_ttl:tor_based_transport_session_default_ttl,
+        i2p_based_transport_session_default_ttl:i2p_based_transport_session_default_ttl
     },
     socket_paths:{
         unix_socket_none_root_osx_path:unix_socket_none_root_osx_path,

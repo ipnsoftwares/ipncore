@@ -238,6 +238,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             pingTime:connObj.getPingTime,
             sessionId:connObj.sessionId,
             defaultTTL:connObj.defaultTTL,
+            isIncomming:connObj.isIncomming,
+            peerVersion:connObj.peerVersion,
             type:"ws",
         };
 
@@ -1128,7 +1130,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Wird verwendet um eine Adressroute abzufagen
-    const initAddressRoute = (publicKey, callback=null, maxRecivingResponses=1, timeout=consensus.ttlForRoutingRequest) => {
+    const initAddressRoute = (publicKey, callback=null, maxRecivingResponses=1, timeout=consensus.ttl_for_routing_request) => {
         // Es wird geprüft ob es sich um die Lokale Adresse handelt, wenn ja wird der Vorgang abgerbrochen!
         if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === publicKey) {
             callback('aborted_is_local_address');

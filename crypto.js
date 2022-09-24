@@ -4,17 +4,9 @@ const crypto = require('crypto');
 const cbor = require('cbor');
 
 
-// Erstellt einen Hash aus einem Dict
-const getHashFromDict = (jsonDict) => {
-    const ordered = Object.keys(jsonDict).sort().reduce((obj, key) => { obj[key] = jsonDict[key]; return obj; },{});
-    const hash = crypto.createHash('sha256').update(cbor.encode(ordered)).digest();
-    return hash;
-}
 
-// Erstellt eine Zufällige SessionID ab
-const createRandomSessionId = () => {
-    return binary_to_base58(crypto.randomBytes(14)).toUpperCase();
-};
+// Speichert das Sodium Modell ab
+let _crypto_sodium_modul = null;
 
 // Speichert alle verfügbaren Verfahren ein
 const CRYPTO_ALGO = {
@@ -23,11 +15,20 @@ const CRYPTO_ALGO = {
     frost_ed25519:'frost_ed25519',
 };
 
-// Speichert das Sodium Modell ab
-let _crypto_sodium_modul = null;
+// Erstellt einen Hash aus einem Dict
+function getHashFromDict(jsonDict) {
+    const ordered = Object.keys(jsonDict).sort().reduce((obj, key) => { obj[key] = jsonDict[key]; return obj; },{});
+    const hash = crypto.createHash('sha256').update(cbor.encode(ordered)).digest();
+    return hash;
+};
+
+// Erstellt eine Zufällige SessionID ab
+function createRandomSessionId() {
+    return binary_to_base58(crypto.randomBytes(14)).toUpperCase();
+};
 
 // Initalisiert alle Librarys
-const init_crypto = (callback) => {
+function init_crypto(callback) {
     if(_crypto_sodium_modul === null) {
         _sodium.ready
         .then((e) => {
@@ -38,7 +39,7 @@ const init_crypto = (callback) => {
 };
 
 // Erstellt ein Schlüsselpaar aus einem Seed
-const crypto_sign_seed_keypair = (crypto_algo, priv_key_bytes) => {
+function crypto_sign_seed_keypair(crypto_algo, priv_key_bytes) {
     // Es wird geprüft ob Sodium Initalisiert wurde
     if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
 
@@ -58,7 +59,7 @@ const crypto_sign_seed_keypair = (crypto_algo, priv_key_bytes) => {
 };
 
 // Signiert einen Datensatz
-const crypto_sign_message = (crypto_algo, message, priv_key_bytes) => {
+function crypto_sign_message(crypto_algo, message, priv_key_bytes) {
     // Es wird geprüft ob Sodium Initalisiert wurde
     if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
 
@@ -71,10 +72,10 @@ const crypto_sign_message = (crypto_algo, message, priv_key_bytes) => {
         default:
             throw new Error('unkown_algo');
     }
-}
+};
 
 // Überprüft ob eine Signatur korrekt ist
-const crypto_verify_sig = (crypto_algo, message, sig, public_key) => {
+function crypto_verify_sig(crypto_algo, message, sig, public_key) {
     // Es wird geprüft ob Sodium Initalisiert wurde
     if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
 
@@ -87,7 +88,7 @@ const crypto_verify_sig = (crypto_algo, message, sig, public_key) => {
         default:
             throw new Error('unkown_algo');
     }
-}
+};
 
 
 module.exports = {

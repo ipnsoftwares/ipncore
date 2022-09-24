@@ -47,24 +47,50 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
     // Speichert die Ping Zeit des letzten Ping Vorganges ab
     var _lastPing = 0;
 
+    // Speichert die version der gegenseite ab
+    var _peerVersion = null;
+
     // Gibt an wieviele Pakete gesendet und Empfangen wurden
     var _recivedPackages = 0, _sendPackages = 0, _recivedPackageBytes = 0, _sendPackagesBytes = 0, _errorRecivedPackages = 0, _errorRecivedPackageBytes = 0;
 
     // Wird verwendet um Pakete an die gegenseite zu senden
     const _SNED_SESSION_BASED_PACKAGES = (signatedPackage, callback) => {
+        // Wandelt das JSON Paket in einen String um
         const packageJSON = JSON.stringify(signatedPackage);
-        wsConnObject.send(packageJSON, () => {
-            dprintok(10, ['Packet with'], [colors.FgMagenta, packageJSON.length], ['bytes is transmitted via websocket connection'], [colors.FgMagenta, _currentSessionId]);
-            _sendPackagesBytes += packageJSON.length;
-            _sendPackages += 1;
-            callback(true);
+
+        // Speichert die Aktuelle Uhrzeit ab
+        const currentTime = Date.now();
+
+        // Das Paket wird versendet
+        wsConnObject.send(packageJSON, (serr) => {
+            // Es wird geprüft ob die Daten gesendet werden konnten
+            if(serr === undefined) {
+                // Es wird ermittelt wielange es gedauert hat bis das Paket versendet wurde
+                let curation = Date.now() - currentTime;
+
+                // Es wird geprüft ob das übertragen des Paketes länger als 0 ms gedauert hat
+                let cspeed = null;
+                if(curation === 0) cspeed = curation;
+                else cspeed = packageJSON.length / curation;
+
+                console.log(curation, cspeed);
+
+                // Das Paket wurde erfolgreich versendet
+                dprintok(10, ['Packet with'], [colors.FgMagenta, packageJSON.length], ['bytes is transmitted via websocket connection'], [colors.FgMagenta, _currentSessionId]);
+                _sendPackagesBytes += packageJSON.length;
+                _sendPackages += 1;
+                callback(true);
+            }
+            else {
+                callback(false);
+            }
         })
     };
 
     // Speichert alle Objekt funktionen ab
     const _WS_SOCKET_FUNCTIONS = {
         sendPackage:(package, callback) => _SNED_SESSION_BASED_PACKAGES(package, callback),
-        defaultTTL:consensus.defaults.ipBasedTransportSessionDefaultTTL,
+        defaultTTL:consensus.defaults.ip_based_transport_session_default_ttl,
         getPeerPublicKey:() => _destinationPublicKey,
         getPeerIPAddressUrl:() => sourceAddress,
         totalRXPackages:() => _recivedPackages,
@@ -72,6 +98,7 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
         totalTXPackages:() => _sendPackages,
         sessionId:() => _currentSessionId,
         close:() => wsConnObject.close(),
+        peerVersion:() => _peerVersion,
         isConnected:() => _isConnected,
         isIncomming:() => incomming,
         getPingTime:() => {
@@ -223,6 +250,9 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
         if(package_data.version < consensus.sversion) {
             wsConnObject.close();
         }
+
+        // Die Version der gegenseite wird abgespeichert
+        _peerVersion = package_data.version;
 
         // Es wird geprüft ob sich das Programm im Main Modus befindet, wenn ja werden alle Tesnet Keys blockiert
         if(consensus.is_mainnet === true) {

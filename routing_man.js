@@ -1,4 +1,5 @@
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
+const { createLayerTwoPackage } = require('./lpckg');
 const { getHashFromDict } = require('./crypto');
 const consensus = require('./consensus');
 const EventEmitter = require('events');
@@ -378,33 +379,16 @@ const routingManager = (signWithNodeKey) => {
             nopLastReturn.push({ ...obj, lastRecive:lastRecive, lastSend:lastSend });
         };
 
-        // Die Ermitelten Peers werden zurückgegeben
-        return nopLastReturn;
-    };
-
-    // Gibt die Schenllsten Routen für eine Verbindung aus
-    const _getFastedRouteEndPoints = async (publicKey, ignoreInitTime=false) => {
-        // Es wird versucht alle Verfügbaren Routen abzurufen
-        const returnValue = await _getAllRouteEndPoints(publicKey);
-        if(returnValue === null) return null;
-        if(returnValue.length === 0) return null;
-
-        // Es werden alle Verbindungen ohne Connect Since Time oder TTL extrahiert
-        let filteredPeers = returnValue.filter((o) => { return o.httl === true && o.hsince === true; });
-
         // Die Verbindungen werden nach Socket PingTime sortiert
-        const socketPingTimeSortedPeers = filteredPeers.sort((a,b) => a.pingTime() - b.pingTime());
+        const socketPingTimeSortedPeers = nopLastReturn.sort((a, b) => a.pingTime() - b.pingTime());
 
         // Die Verbindungen werden nach TTL sortiert
-        const routePingTimeSortedPeers = socketPingTimeSortedPeers.sort((a,b) => a.cttl - b.cttl);
+        const routePingTimeSortedPeers = socketPingTimeSortedPeers.sort((a, b) => a.cttl - b.cttl);
 
         // Die Verbindungen werden nach Lange der Bekanntheit Sortiert
-        const endPointRoutes = routePingTimeSortedPeers.sort((a,b) => a.csince + b.csince);
+        const endPointRoutes = routePingTimeSortedPeers.sort((a, b) => a.csince + b.csince);
 
-        // Es wird geprüft ob eine EndPoint Route vorhanden ist
-        if(endPointRoutes.length === 0) return null;
-
-        // Die Sortierten Verbindungen werden zurückgegeben
+        // Die Ermitelten Peers werden zurückgegeben
         return endPointRoutes;
     };
 
@@ -425,66 +409,81 @@ const routingManager = (signWithNodeKey) => {
         console.log('PACKAGE_LOSS');
     };
 
-    // Gibt die Optimalste Route für eine Verbindung aus
-    const _getOptimalRouteForAddress = async (publicKey) => {
+    // Gibt besten Route für die Verbindung aus
+    const _getBestRoutes = async (publicKey, options=null) => {
         // Es werden die Schnellsten Route abgerufen
-        const fastedRoutes = await _getFastedRouteEndPoints(publicKey);
+        const fastedRoutes = await _getAllRouteEndPoints(publicKey);
         if(fastedRoutes === null) return null;
 
         // Es wird der Aktuelle Zeitstempel abgespeichert
         const currentTimestamp = Date.now();
-        console.log(fastedRoutes);
 
-        // Es werden alle Verbindungen herausgefilter an die noch keine Daten gesendet wurden
-        const filteredConnectionsWithoutSendPackages = fastedRoutes.filter((r) => { if(r.lastSend === null) return r; });
-        if(filteredConnectionsWithoutSendPackages.length > 0) {
-            // Es wird geprüft ob nur eine Verbindung verfügbar ist
-            if(filteredConnectionsWithoutSendPackages.length === 1) { return filteredConnectionsWithoutSendPackages[0]; }
-
-            // Es wird ermittelt welcher der Verbindungen am längsten Vorhanden ist
-            const longestConnected = [];
-            for(const otem of filteredConnectionsWithoutSendPackages) {
-                console.log('A:',otem);
-            }
+        // Die Verbindungen werden nach zuletzt versendet sortiert
+        let notSendedConnections = [], sendedConnections = [];
+        for(const otem of fastedRoutes) {
+            if(otem.lastSend === null) notSendedConnections.push(otem);
+            else sendedConnections.push(otem);
         }
-        else {
-            // Es werden alle Verbindungn herausgesucht auf den noch keine Daten gesendeten wurden
-            const filteredConnectionsWithoutRecivedData = fastedRoutes.filter((r) => { if(r.lastRecive === null) return r; });
-            if(filteredConnectionsWithoutRecivedData.length > 0) {
-                // Es wird geprüft ob nur eine Verbindung verfügbar ist
-                if(filteredConnectionsWithoutRecivedData.length === 1) { return filteredConnectionsWithoutRecivedData[0]; }
 
-                // Es wird ermittelt welcher der Verbindungen am Vorhanden ist ohne Daten empfangen zu haben
-                const filtr = filteredConnectionsWithoutRecivedData.filter((r) => {
-                    console.log(r);
-                    return r;
-                });
+        // Die Verbindungen werden nach Connected Since sortiert
+        const bvalue = ((notSendedConnections.length > 0) ? notSendedConnections : sendedConnections);
+        const filteredConnections = bvalue.sort(function (a,b) { return (currentTimestamp - a.csince) - (currentTimestamp - b.csince); });
+
+        // Die Verbindungen werden nach zuletzt empfangen Paketen sortiert
+        let notRecivedConnections = [], recivedConnections = [];
+        for(const otem of filteredConnections) {
+            if(otem.lastRecive === null) notRecivedConnections.push(otem);
+            else recivedConnections.push(otem);
+        }
+
+        // Die Verbindungen werden nach TTL Sortiert
+        let notUseableTTLConnections = [], useableTTLConnections = [];
+        for(const otem of ((notRecivedConnections.length > 0) ? notRecivedConnections : recivedConnections)) {
+            if(otem.lastRecive !== null) {
+                const currentTime = currentTimestamp - otem.lastRecive;
+                if(currentTime <= otem.cttl) useableTTLConnections.push(otem);
+                else notUseableTTLConnections.push(otem);
             }
             else {
-                console.log('DR');
+                const lastAdded = currentTimestamp - otem.csince;
+                if(lastAdded <= otem.cttl) useableTTLConnections.push(otem);
+                else notUseableTTLConnections.push(otem);
             }
         }
 
-        // Die erste Verbindung wird ausgegeben
-        const r = fastedRoutes[0];
-        return r;
-    };
-
-    // Gibt besten Route für die Verbindung aus
-    const _getBestRoutes = async (publicKey, options=null) => {
-        // Es werden die Schnellsten Route abgerufen
-        const fastedRoutes = await _getFastedRouteEndPoints(publicKey);
-        if(fastedRoutes === null) return null;
-
-        // Die ersten X Routen (consensus.js::routeingMaxPeers)
-        let fetchedOptimalRoutes = [];
-        for(const otem of fastedRoutes) {
-            fetchedOptimalRoutes.push(otem);
-            if(fetchedOptimalRoutes.length === consensus.routeingMaxPeers) break;
+        // Die Verbindungen werden nach Losstrate Sortiert
+        let bestRoutes = [], mdlRouts = [], nearRoutes = [];
+        for(const otem of ((notUseableTTLConnections.length > 0) ? notUseableTTLConnections : useableTTLConnections)) {
+            if(otem.lossRate === 0 && otem.lossRate < 5) bestRoutes.push(otem);
+            else if(otem.lossRate === 5 && otem.lossRate < 25) mdlRouts.push(otem);
+            else nearRoutes.push(otem);
         }
 
         // Die erste Verbindung wird ausgegeben
-        return fetchedOptimalRoutes;
+        let returnValue = [];
+        for(const otem of ((bestRoutes.length > 0) ? bestRoutes : ((mdlRouts.length > 0) ? mdlRouts : nearRoutes))) {
+            returnValue.push(otem);
+            if(returnValue.length === consensus.routeing_max_peers) break;
+        }
+
+        // Es wird geprüft ob mindestens 1 Verbindung verfügbar ist
+        if(returnValue.length < 1) {
+            console.log('D')
+            return null;
+        }
+
+        // Die Daten werden zurückgegeben
+        return returnValue;
+    };
+
+    // Gibt die Optimalste Route für eine Verbindung aus
+    const _getOptimalRouteForAddress = async (publicKey) => {
+        // Die besten Routen für die Adresse werden abgerufen
+        const best_routes_return = await _getBestRoutes(publicKey);
+        if(best_routes_return === undefined || best_routes_return === null) return null;
+
+        // Die erste Verbindung wird zurückgegeben
+        return best_routes_return[0];
     };
 
     // Gibt die InitPing Zeit einer Route aus
@@ -524,7 +523,6 @@ const routingManager = (signWithNodeKey) => {
             signalLossPackage:async (sessionId) => await _signalLossPackage(publicKey, sessionId),
             getOptimalRouteEndPoint:async () => await _getOptimalRouteForAddress(publicKey),
             registerEvent:(eventName, listner) => eventEmitter.on(eventName, listner),
-            getFastedEndPoints:async () => await _getFastedRouteEndPoints(publicKey),
             getAllPeers:async () => await _getAllRouteEndPoints(publicKey),
             getBestRoutes:async () => await _getBestRoutes(publicKey),
             avarageInitPingTime:_avarageInitPingTime,
@@ -686,49 +684,60 @@ const routingManager = (signWithNodeKey) => {
 
     // Nimmt Pakete entgegen welche versendet werden sollen
     const _enterOutgoingLayer2Packages = (destination, framePackage, callbackSend, revalp=1, directEpObjectToSend=null) => {
-        // Es wird geprüft ob es sich bei der Empfänger Adresse um eine bekannte Adresse handelt
-        const endPointSession = pkeyToSessionEP.get(destination);
-        console.log(destination)
-        if(endPointSession === undefined) {
-            console.log('PACKAGE_DROPED_UNKOWN_DESTINATION');
-            return;
-        }
-
-        // Es wird geprüft ob mindestens eine EndPointSession vorhanden ist
-        if(endPointSession.length < 1) {
-            // Der Vorgang wird abgebrochen, es ist keine Verbindung verfügbar
-            console.log('DROPED_NO_PEER_AVAILABLE');
-            callbackSend(false);
-            return
-        }
-
-        (async() => {
-            // Die Daten werden an den Schnellsten Node gesendet
-            let firstConnection;
-            if(directEpObjectToSend !== null) { firstConnection = directEpObjectToSend; }
-            else { firstConnection = sessionEndPoints.get(endPointSession[0]); }
-
-            // Es wird geprüft ob die Verbindung abgerufen werden konnte
-            if(firstConnection === undefined) {
-                console.log('NO_CONNECTION');
-                // Es wird versucht den Vorgang zu wiederholen, nachdem dritten Versuch wird der Vorgang abgebrochen
+        // Die Besten Routen für das Ziel werden abgerufen
+        _getBestRoutes(destination).then((best_routes) => {
+            // Es wird geprüft ob eine Route verfügbar ist
+            if(best_routes === null) {
+                console.log('PACKAGE_DROPED_UNKOWN_DESTINATION');
                 return;
             }
 
-            // Das Layer 1 Paket wird gebaut
-            const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:framePackage };
+            // Speichert ab, die wieviele Senderounde das ist
+            let currentSendRound = 0;
 
-            // Das Paket wird Signiert
-            const signatedPackage = signWithNodeKey(prePackage);
-
-            // Das Paket wird versendet
-            firstConnection.enterPackage(signatedPackage, () => {
-                console.log('PACKAGE_SEND_TO', destination, endPointSession[0]);
-                if(callbackSend !== undefined) {
-                    callbackSend(true);
+            // Wird verwendet um das eigentliche Paket abzusenden
+            const _spckfnc = () => {
+                // Es wird geprüft ob noch ein Eintrag vorhanden ist
+                if(best_routes.length === 0) {
+                    callbackSend('no_routes_avail');
+                    return;
                 }
-            })
-        })();
+
+                // Es wird eine Runde nach oben gezählt
+                currentSendRound += 1;
+
+                // Der erste eintrag wird ausgewählt
+                const fextracted = best_routes.pop();
+
+                // Das Paket wird gebaut und Signiert
+                const unsignatedPackage = createLayerTwoPackage(fextracted.peerVersion(), framePackage);
+                const signatedPackage = signWithNodeKey(unsignatedPackage);
+
+                // Es wird geprüft ob die Verbindung mit diesem Peer besteht
+                if(fextracted.isConnected() !== true) _spckfnc();
+
+                // Das Paket wird an den Peer gesendet
+                fextracted.enterPackage(signatedPackage, (sendOk) => {
+                    if(sendOk === true) {
+                        _signalPackageTransferedToPKey(framePackage.soruce, destination, fextracted).then(() => {
+                            callbackSend(true);
+                        });
+                    }
+                    else {
+                        if(best_routes.length === currentSendRound) {
+                            callbackSend(false);
+                            return;
+                        }
+                        else {
+                            _spckfnc();
+                        }
+                    }
+                });
+            };
+
+            // Es wird versucht das Paket abzsuenden
+            _spckfnc();
+        });
     };
 
     // Wird von einem Timer ausgeführt und überwacht alle Routen, Routen welche länger als 2 Minuten nicht verwendet wurden, werden entfernt sofern es sich nicht um Peer Root Adressen handelt

@@ -2,11 +2,6 @@ const consensus = require('./consensus');
 const os = require('os');
 
 
-// Speichert alle Unterstützten Systeme ab
-const SUPPORTED_HOST_SYSTEMS = {
-
-};
-
 
 // Wird verwendet um alle Einstellungen, Datenbanken usw auf Geräteebene zu laden
 const _LOAD_DEVICE_CORE_SETTINGS_OS_LEVEL = (cmdlineArgs, service, callback) => {
