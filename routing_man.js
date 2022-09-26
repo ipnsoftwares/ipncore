@@ -330,7 +330,7 @@ const routingManager = (signWithNodeKey) => {
                     if(prepTTL > peerItem.defaultTTL) prepTTL = peerItem.defaultTTL;
 
                     // Der Peer wird hinzugefügt
-                    optimizedPeers.push({ ...peerItem, cttl:prepTTL, httl:true });
+                    optimizedPeers.push({ ...peerItem, cttl:prepTTL, httl:true, ottl:sip });
 
                     // Der Nächste Eintrag wird abgearbeitet
                     continue;
@@ -338,7 +338,7 @@ const routingManager = (signWithNodeKey) => {
             }
 
             // Es konnte keine InitPingTime für den Vorgang ermittelt werden, die Standard TTL wird verwendet
-            optimizedPeers.push({ ...peerItem, cttl:optimizedPeers.defaultTTL, httl:false });
+            optimizedPeers.push({ ...peerItem, cttl:peerItem.defaultTTL, httl:false });
         };
 
         // Es wird ermittelt, wielange die Route bereits bekannt ist
@@ -415,9 +415,6 @@ const routingManager = (signWithNodeKey) => {
         const fastedRoutes = await _getAllRouteEndPoints(publicKey);
         if(fastedRoutes === null) return null;
 
-        // Es wird der Aktuelle Zeitstempel abgespeichert
-        const currentTimestamp = Date.now();
-
         // Die Verbindungen werden nach zuletzt versendet sortiert
         let notSendedConnections = [], sendedConnections = [];
         for(const otem of fastedRoutes) {
@@ -425,65 +422,39 @@ const routingManager = (signWithNodeKey) => {
             else sendedConnections.push(otem);
         }
 
-        // Die Verbindungen werden nach Connected Since sortiert
-        const bvalue = ((notSendedConnections.length > 0) ? notSendedConnections : sendedConnections);
-        const filteredConnections = bvalue.sort(function (a,b) { return (currentTimestamp - a.csince) - (currentTimestamp - b.csince); });
+        // Es wird geprüft ob eine Verbindung verfügbar ist
+        if(notSendedConnections === null && sendedConnections === null) return null;
 
         // Die Verbindungen werden nach zuletzt empfangen Paketen sortiert
         let notRecivedConnections = [], recivedConnections = [];
-        for(const otem of filteredConnections) {
+        for(const otem of ((notSendedConnections.length > 0) ? notSendedConnections : sendedConnections)) {
             if(otem.lastRecive === null) notRecivedConnections.push(otem);
             else recivedConnections.push(otem);
         }
 
-        // Die Verbindungen werden nach TTL Sortiert
-        let notUseableTTLConnections = [], useableTTLConnections = [];
-        for(const otem of ((notRecivedConnections.length > 0) ? notRecivedConnections : recivedConnections)) {
-            if(otem.lastRecive !== null) {
-                const currentTime = currentTimestamp - otem.lastRecive;
-                if(currentTime <= otem.cttl) useableTTLConnections.push(otem);
-                else notUseableTTLConnections.push(otem);
-            }
-            else {
-                const lastAdded = currentTimestamp - otem.csince;
-                if(lastAdded <= otem.cttl) useableTTLConnections.push(otem);
-                else notUseableTTLConnections.push(otem);
-            }
+        // Es wird geprüft ob eine Verbindung verfügbar ist
+        if(notRecivedConnections === null && recivedConnections === null) return null;
+
+        // Es wird geprüft ob es nicht genutzte verbindungen gibt, wenn ja werden diese Verbindung bevorzugt ausgewählt
+        if(notRecivedConnections.length > 0) {
+            return ((notRecivedConnections.length > 0) ? notRecivedConnections : recivedConnections);
         }
 
-        // Die Verbindungen werden nach Losstrate Sortiert
-        let bestRoutes = [], mdlRouts = [], nearRoutes = [];
-        for(const otem of ((notUseableTTLConnections.length > 0) ? notUseableTTLConnections : useableTTLConnections)) {
-            if(otem.lossRate === 0 && otem.lossRate < 5) bestRoutes.push(otem);
-            else if(otem.lossRate === 5 && otem.lossRate < 25) mdlRouts.push(otem);
-            else nearRoutes.push(otem);
-        }
-
-        // Die erste Verbindung wird ausgegeben
-        let returnValue = [];
-        for(const otem of ((bestRoutes.length > 0) ? bestRoutes : ((mdlRouts.length > 0) ? mdlRouts : nearRoutes))) {
-            returnValue.push(otem);
-            if(returnValue.length === consensus.routeing_max_peers) break;
-        }
-
-        // Es wird geprüft ob mindestens 1 Verbindung verfügbar ist
-        if(returnValue.length < 1) {
-            console.log('D')
-            return null;
-        }
-
-        // Die Daten werden zurückgegeben
-        return returnValue;
+        // Die Verbindungen werden nach am Längsten bestehenden und am längste nicht Versendet sortiert
+        const c_best_routes = recivedConnections.sort((a, b) => a.lastRecive - b.lastRecive);
+        return c_best_routes;
     };
 
     // Gibt die Optimalste Route für eine Verbindung aus
-    const _getOptimalRouteForAddress = async (publicKey) => {
+    const _getOptimalRouteForAddress = async (publicKey, options=null) => {
         // Die besten Routen für die Adresse werden abgerufen
-        const best_routes_return = await _getBestRoutes(publicKey);
+        const best_routes_return = await _getBestRoutes(publicKey, options);
         if(best_routes_return === undefined || best_routes_return === null) return null;
 
         // Die erste Verbindung wird zurückgegeben
-        return best_routes_return[0];
+        const optimal_route =  best_routes_return[0];
+        dprintinfo(10, ['Connection selected for sending package'], [colors.FgMagenta, optimal_route.sessionId()]);
+        return optimal_route;
     };
 
     // Gibt die InitPing Zeit einer Route aus

@@ -363,9 +363,30 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         }
     };
 
+    // Wird verwendet um ein Layer 3 Paket zu versenden
+    const _GET_SOCKET_IO_FUNCTIONS = (localport, destport, callback) => {
+        // Wird verwendet um ein Layer 3 Paket zu versenden
+        const _SEND_LAYER_THREE_SOCKET_PACKAGE = (data, pckret) => {
+            // Das Basispaket wird gebaut
+            const layer3Frame = { sport:localport, dport:destport, data:data };
+
+            // Das Frame wird erstellt
+            const finallyFrame = _COMPLETE_UNSIGNATED_FRAME({ type:'nxt', body:layer3Frame });
+
+            // Es wird versucht das Paket abzusenden
+            _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, null, pckret);
+        };
+
+        // Das Objekt wird zurückgegeben
+        callback({ sendPackage:_SEND_LAYER_THREE_SOCKET_PACKAGE });
+    };
+
     // Gibt die Basis Funktionen zurück
     const _BASE_FUNCTIONS = {
         getState:() => objectState,
+        socket:{
+            getSocketIo:(localport, destport, callback) => _GET_SOCKET_IO_FUNCTIONS(localport, destport, callback)
+        },
         ping:{
             ssingle:(callb, bsize=96, strict=false) => _START_PING_PROCESS(bsize, null, strict, callb),
         }, 
@@ -390,8 +411,8 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     });
 
     // Es wird versucht die Primäre
-    return { enterPackage:_ENTER_INCOMMING_PACKAGE };
+    return { enterPackage:_ENTER_INCOMMING_PACKAGE, };
 };
 
 
-module.exports = { addressRawEndPoint:addressRawEndPoint }
+module.exports = { addressRawEndPoint:addressRawEndPoint };

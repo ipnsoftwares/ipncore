@@ -2,7 +2,7 @@ const { getHashFromDict, createRandomSessionId, eccdsa } = require('./crypto');
 const { dprintok, dprinterror, colors } = require('./debug');
 const { WebSocketServer, WebSocket } = require('ws');
 const consensus = require('./consensus');
-const { v4: uuidv4 } = require('uuid');
+const { v4: uuidv4, v4 } = require('uuid');
 
 
 
@@ -51,7 +51,7 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
     var _peerVersion = null;
 
     // Gibt an wieviele Pakete gesendet und Empfangen wurden
-    var _recivedPackages = 0, _sendPackages = 0, _recivedPackageBytes = 0, _sendPackagesBytes = 0, _errorRecivedPackages = 0, _errorRecivedPackageBytes = 0;
+    var _recivedPackages = 0, _sendPackages = 0, _recivedPackageBytes = 0, _sendPackagesBytes = 0, _errorRecivedPackages = 0, _errorRecivedPackageBytes = 0, _prate = 0;
 
     // Wird verwendet um Pakete an die gegenseite zu senden
     const _SNED_SESSION_BASED_PACKAGES = (signatedPackage, callback) => {
@@ -69,11 +69,8 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
                 let curation = Date.now() - currentTime;
 
                 // Es wird geprüft ob das übertragen des Paketes länger als 0 ms gedauert hat
-                let cspeed = null;
-                if(curation === 0) cspeed = curation;
-                else cspeed = packageJSON.length / curation;
-
-                console.log(curation, cspeed);
+                if(curation === 0) _prate = curation;
+                else _prate = packageJSON.length / curation;
 
                 // Das Paket wurde erfolgreich versendet
                 dprintok(10, ['Packet with'], [colors.FgMagenta, packageJSON.length], ['bytes is transmitted via websocket connection'], [colors.FgMagenta, _currentSessionId]);
@@ -101,6 +98,7 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
         peerVersion:() => _peerVersion,
         isConnected:() => _isConnected,
         isIncomming:() => incomming,
+        sendRate:() => _prate,
         getPingTime:() => {
             if(_lastPing === 0) {
                 const r_ = _connectionInitalFinalTime - _connectionStartTime;

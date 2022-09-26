@@ -1,12 +1,12 @@
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { addressRawEndPoint } = require('./address_raw_ep');
 const { getHashFromDict, eccdsa } = require('./crypto');
+const { verifyLayerThreePackage } = require('./lpckg');
 const { routingManager } = require('./routing_man');
 const { wsConnectTo, wsServer } = require('./wss');
 const consensus = require('./consensus');
 const { log } = require('console');
 const crypto = require('crypto');
-const { strict } = require('assert');
 const URL = require("url").URL;
 
 
@@ -31,6 +31,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
     // Speichert alle Dienste einer Verbindung ab
     const _openPeerServices = new Map();
+
+    // Speichert alle Offenen Sockets ab
+    const _openSockets = new Map();
 
     // Gibt alle Crypto Funktionen an
     const CRYPTO_FUNCTIONS = {
@@ -240,6 +243,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             defaultTTL:connObj.defaultTTL,
             isIncomming:connObj.isIncomming,
             peerVersion:connObj.peerVersion,
+            sendRate:connObj.sendRate,
             type:"ws",
         };
 
@@ -427,14 +431,38 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         return Object.assign(unsignedFrame, { source:Buffer.from(packageSig.pkey).toString('hex'), ssig:Buffer.from(packageSig.sig).toString('hex') });
     };
 
-    // Gibt an, ob es für dieses Paket einen Offnenen Lokalen Socket gibt
-    const _HAS_OPEN_LOCAL_SOCKET_FOR_LAYERTPACKAGE = (layertpackage, connObj, callback) => {
-        return false;
-    };
-
     // Nimmt Pakete für Lokale Sockets entgegen
-    const _ENTER_LOCAL_SOCKET_PACKAGES = (layertpackage, connObj, callback) => {
+    const _ENTER_LOCAL_SOCKET_PACKAGES = (layertpackage, connObj, sdeph, callback) => {
+        // Es wird geprüft ob es einen Offenen Lokalen Port gibt, welcher auf diese Verbindung wartet
+        const retrivedSocketEp = _openSockets.get(layertpackage.body.ebody.body.dport);
+        if(retrivedSocketEp !== undefined) {
+            // Es wird geprüft ob es für den Absender Port in Kombination mit dem Empfänger Port ein Socket vorhanden ist
+            const retrivedDestSocketEp = retrivedSocketEp.get(layertpackage.body.ebody.body.sport);
+            if(retrivedDestSocketEp !== undefined) {
+                // Das Paket wird an den Socket übergeben
+                retrivedDestSocketEp.enterPackage(layertpackage, connObj, null, (r) => callback(r))
+            }
+            else {
+                // Es wird geprüft ob es einen Universalen Lokalen Port gibt, wenn ja wird ein RAW Ep Abgerufen und mit dem Paket an den Socket übergeben
+                const retrivLocSock = retrivedSocketEp.get('*');
+                if(retrivLocSock === undefined) {
+                    console.log('UNKOWN_SOCKET')
+                    callback(false);
+                    return; 
+                }
 
+                // Es wird versucht den Address Raw EP abzurufen
+                getAddressRawEndPoint(layertpackage.source, (adrEpError, adrEpObj) => {
+
+                }, 
+                { autFetchRoutePing:false });
+            }
+        }
+        else {
+            // Es gibt keinen Lokalen Socket welcher auf diese Verbindung wartet, dass Paket wird verworfen
+            console.log('UNKOWN_SOCKET_A', layertpackage.body.sport);
+            callback(false);
+        }
     };
 
     // Verarbeitet Pakete welche für den Aktuellen Node bestimmt sind
@@ -444,6 +472,12 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
         // Es wird geprüft ob ein Pakettyp vorhanden ist
         if(decryptedPackage.hasOwnProperty('type') === false) { callback(false); return; }
+
+        // Aus der Empfänger Adresse sowie der Absender Adresse wird ein Hash erstellt
+        const endPointHash = crypto.createHash('sha256')
+        .update(Buffer.from(packageFrame.source, 'hex'))
+        .update(Buffer.from(localPrivateKeyPair.publicKey))
+        .digest('hex');
 
         // Es wird geprüft ob es sich um ein Ping Paket handelt
         if(decryptedPackage.type === 'ping') {
@@ -502,37 +536,32 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Die Aufgabe wurde erfolgreich fertigestellt
             return;
         }
+        // Das Paket wird weiterverabeitet
+        else {
+            // Es wird versucht den RawEP abzurufen
+            const openEP = _openRawEndPoints.get(endPointHash);
 
-        // Es wird geprüft ob das Paket für einen Lokalen Socket bestimmt ist
-        if(_HAS_OPEN_LOCAL_SOCKET_FOR_LAYERTPACKAGE(packageFrame) === true) {
-            // Das Paket wird an den Lokalen Socket übergeben
-            _ENTER_LOCAL_SOCKET_PACKAGES(packageFrame, connObj, (r) => {
-                if(r === true) callback();
-                else callback(false);
-            });
+            // Es wird geprüft ob es sich um ein Pon Paket handelt, wenn ja wird es direkt weitergegeben
+            if(decryptedPackage.type === 'pong') {
+                // Es wird geprüft ob der EndPunkt vorhanden ist
+                if(openEP === undefined) { callback(false); return; }
 
-            // Der Vorgang wird an dieser Stelle beendet
-            return;
+                // Das Paket wird an den Lokalen EndPunt übergeben
+                openEP.enterPackage(packageFrame, connObj, (r) => {
+                    if(r === true) callback();
+                    else callback(false);
+                });
+
+                // Der Vorgang wird beendet
+                return;
+            }
+
+            // Es wird geprüft ob es sich um ein gültiges Layer 3 Paket handelt
+            if(verifyLayerThreePackage(decryptedPackage) === false) { callback(false); return; }
+
+            // Das Paket wird weiterverabeitet
+            _ENTER_LOCAL_SOCKET_PACKAGES(packageFrame, connObj, endPointHash, callback);
         }
-
-        // Aus der Empfänger Adresse sowie der Absender Adresse wird ein Hash erstellt
-        const endPointHash = crypto.createHash('sha256')
-        .update(Buffer.from(packageFrame.source, 'hex'))
-        .update(Buffer.from(localPrivateKeyPair.publicKey))
-        .digest('hex');
-
-        // Es wird geprüft ob es einen Offenen RAW Address EndPoint gibt
-        const openEP = _openRawEndPoints.get(endPointHash);
-        if(openEP === undefined) {
-            callback(false);
-            return; 
-        }
-
-        // Das Paket wird an den EndPunkt übergeben
-        openEP.enterPackage(packageFrame, connObj, (r) => {
-            if(r === true) callback();
-            else callback(false);
-        });
     };
 
     // Nimt eintreffende Pakete entgegen
@@ -1083,8 +1112,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
     // Speichert die Standardeinstellungen für Adress EndPoints ab
     const _DEFAULT_ADDRESS_RAW_EP = {
-        autoFetchRouteForAddress: false,
-        autoReFetchAddressRoute: false,
+        autFetchRoutePing: true,
     };
 
     // Wir verwendet um einen Websocket Server zu erstellen
@@ -1383,7 +1411,18 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
     // Erstellt einen neuen Lokalen Socket
     const createNewLocalSocket = (endPoint, callback) => {
+        // Es wird geprüft ob es für die Lokale Adresse bereits einen Eintrag gibt
+        const localSocketEntry = _openSockets.get(endPoint);
+        if(localSocketEntry !== undefined) {
 
+        }
+        else {
+            // Es wird ein neuer Eintrag hinzugefügt
+            const nea = new Map();
+            nea.set('*', {});
+            _openSockets.set(endPoint, nea);
+            callback(null, {});
+        }
     };
 
     // Das Objekt wird zurückgegben
