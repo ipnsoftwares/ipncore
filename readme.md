@@ -15,6 +15,7 @@
 ## 🔐 **Support cryptographic methods:**
 - [ED25519 / Curve25519 (INIP0004)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
 - [Chacha20-Poly1305 (INIP0004)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
+---
 
 
 ## 🚀🍾 **Communities:** 
