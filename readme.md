@@ -1,23 +1,43 @@
-# Interplanetary Network (IPN), Open Source (MIT), Decentralized P2P Network
+# 🌍 **Interplanetary Network (IPN)** 👽
 
-## The following functions are supported
+
+## 👍 **The following functions are supported:**
 - [Decentralized routing protocol (Artemis Protocol | INIP0001)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0001_de.mediawiki)
 - [Bootnode support and hardcoded swarm nodes to initialize the network (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
 ---
 
 
-## Supported network protocols
+## 🌍 **Supported network protocols:**
 - [Websocket (WS/WSS) (INIP0002)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
 ---
 
 
-## Support cryptographic methods
+## 🔐 **Support cryptographic methods:**
 - [ED25519 / Curve25519 (INIP0004)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
 - [Chacha20-Poly1305 (INIP0004)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
+
+
+## 🚀🍾 **Communities:** 
+* [Interplanetary Network (IPN) Twitter](https://twitter.com/fluffelpuffcode)
+
 ---
 
 
-## To do list
+## ⚖️ **License - Much license:**
+IPN Core is released under the terms of the MIT license. See
+[COPYING](COPYING) for more information or see
+[opensource.org](https://opensource.org/licenses/MIT)
+
+---
+
+
+## 💲 **Support me:**
+- **BTC**: bc1pt4jfvgsylagskgcex9rwefufhzsv2qanwk9f77ullaft0hd4jy0s4870jh
+- **ETH**: 0xF0b7D4B2c21F4FE3645dBB312B8C2e08220B7f0d
+---
+
+
+## ✅ **To do list:**
 - [ ] Power Routing over Distributed hash table DHT
 - [ ] Commandline Console for IPN-Core Service
 - [ ] [DNS Node seeding (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
