@@ -326,7 +326,7 @@ const routingManager = (signWithNodeKey) => {
                 const sip = await cip.get(peerItem.sessionId());
                 if(sip !== undefined) {
                     // Die Aktuelle TTL wird erechnet
-                    let prepTTL = sip * 3;
+                    let prepTTL = Math.ceil(sip * 1.5);
                     if(prepTTL > peerItem.defaultTTL) prepTTL = peerItem.defaultTTL;
 
                     // Der Peer wird hinzugefügt

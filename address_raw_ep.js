@@ -230,7 +230,8 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         const randomByteValues = crypto.randomBytes(bodySize);
 
         // Das Frame wird erstellt
-        const finallyFrame = _COMPLETE_UNSIGNATED_FRAME({ type:'ping', rdata:randomByteValues.toString('base64'), strict:strict });
+        const baseFrame = { type:'ping', rdata:randomByteValues.toString('base64'), strict:strict };
+        const finallyFrame = _COMPLETE_UNSIGNATED_FRAME(baseFrame);
 
         // Aus dem RandomHash werden 2 hashes erzeugt
         const frstRandHash = crypto.createHash('sha256').update(randomByteValues).digest();
@@ -292,7 +293,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         _openPingProcesses.set(secRandHash, { callResponse:_RESPONSE, close:_CLOSE });
 
         // Das Ping Paket wird versendet
-        dprintinfo(10, ['The ping packet'], [colors.FgRed, getHashFromDict(finallyFrame).toString('base64')], ['is sent']);
+        dprintinfo(10, ['The ping packet'], [colors.FgRed, getHashFromDict(baseFrame).toString('base64')], ['is sent']);
         _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, socketobj, (state, tttl, ptime, sendSessionId) => {
             // Es wird geprüft ob der Ping Vorgang erfolgreich durchgeführt wurde
             if(state !== true) {
@@ -312,7 +313,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             _OPEN_WAIT_RESPONSE_TIMER = setTimeout(_TIMER_FUNCTION_PROC, tttl);
 
             // Log
-            dprintinfo(10, ['The ping packet'], [colors.FgRed, getHashFromDict(finallyFrame).toString('base64')], ['sent in'], [colors.FgMagenta, ptime], ['ms, ttl ='], [colors.FgMagenta, tttl]);
+            dprintinfo(10, ['The ping packet'], [colors.FgRed, getHashFromDict(baseFrame).toString('base64')], ['sent in'], [colors.FgMagenta, ptime], ['ms, ttl ='], [colors.FgMagenta, tttl]);
         });
     };
 
@@ -378,7 +379,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         };
 
         // Das Objekt wird zurückgegeben
-        callback({ sendPackage:_SEND_LAYER_THREE_SOCKET_PACKAGE });
+        callback({ sendData:_SEND_LAYER_THREE_SOCKET_PACKAGE });
     };
 
     // Gibt die Basis Funktionen zurück
@@ -411,8 +412,11 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     });
 
     // Es wird versucht die Primäre
-    return { enterPackage:_ENTER_INCOMMING_PACKAGE, };
+    return { 
+        enterPackage:_ENTER_INCOMMING_PACKAGE,
+        routeEp:() => _BASE_FUNCTIONS
+    };
 };
 
 
-module.exports = { addressRawEndPoint:addressRawEndPoint };
+module.exports = { addressRawEndPoint:addressRawEndPoint, bfunctions:null };

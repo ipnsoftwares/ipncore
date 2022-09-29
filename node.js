@@ -1,3 +1,4 @@
+const { createNewSocketWithoutRemoteEp, SockTypes } = require('./socket');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { addressRawEndPoint } = require('./address_raw_ep');
 const { getHashFromDict, eccdsa } = require('./crypto');
@@ -453,9 +454,15 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
                 // Es wird versucht den Address Raw EP abzurufen
                 getAddressRawEndPoint(layertpackage.source, (adrEpError, adrEpObj) => {
+                    // Es wird geprüft ob ein fehler aufgetreten ist
+                    if(adrEpError !== null) {
+                        callback(adrEpError);
+                        return;
+                    }
 
-                }, 
-                { autFetchRoutePing:false });
+                    // Das Paket wird an den Socket übergeben
+                    retrivLocSock.enterPackage(layertpackage, adrEpObj, (state) => callback(state));
+                });
             }
         }
         else {
@@ -597,9 +604,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 await _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination, connObj);
 
                 // Das Paket wird Lokal weiter verarbeitet
-                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState) => {
-                        
-                });
+                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState) => { });
             })
         }
         else {
@@ -1381,14 +1386,14 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Es wird geprüft ob es bereits einen Offenen RAW Address EndPoint gibt
             const openEP = await _openRawEndPoints.get(endPointHash);
             if(openEP !== undefined) {
-                callback(openEP);
+                callback(null, openEP.routeEp());
                 return; 
             }
 
             // Es wird gepüft ob es eine Route für diese Adresse gibt
             const routeEP = await _rManager.getAddressRouteEP(destPublicKey);
             if(routeEP === false) {
-                callback('unkown_address_route');
+                callback('NO_ADDRESS_ROUTE');
                 return;
             }
 
@@ -1414,14 +1419,29 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         // Es wird geprüft ob es für die Lokale Adresse bereits einen Eintrag gibt
         const localSocketEntry = _openSockets.get(endPoint);
         if(localSocketEntry !== undefined) {
-
+            // Der Vorgang wird abgebrochen, der Socket ist bereits vorhanden
         }
         else {
-            // Es wird ein neuer Eintrag hinzugefügt
+            // Die RAW Funktion werden erweitert
+            const modfifRAWFunctions = {
+                ..._RAW_FUNCTIONS,
+                getAddressRawEndPoint:(destPublicKey, callback, addressRawEpConfig=_DEFAULT_ADDRESS_RAW_EP) => {
+                    return getAddressRawEndPoint(destPublicKey, callback, addressRawEpConfig);
+                }
+            }
+
+            // Der Neue Socket wird erzeugt
             const nea = new Map();
-            nea.set('*', {});
+            nea.set('*', createNewSocketWithoutRemoteEp(modfifRAWFunctions, localPrivateKeyPair, SockTypes.RAW, endPoint, (error, sockobj) => {
+                // Es wird geprüft ob ein Fehler aufgetreten ist
+                if(error !== null) { callback(error); return; }
+
+                // Die Callback Funktion wird aufgerufen
+                callback(null, sockobj);
+            }));
+
+            // Der Socket wird abgespeichert
             _openSockets.set(endPoint, nea);
-            callback(null, {});
         }
     };
 

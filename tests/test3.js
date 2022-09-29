@@ -11,5 +11,15 @@ const crypto = require('crypto');
     console.log(Buffer.from(k.publicKey).toString('hex'))
     var n = Node(sodium, k);
     n.addNewWSServer(8081);
+
+    // Es wird ein Testsocket erstellt
+    const testSocket = n.createNewLocalSocket(crypto.createHash('sha256').update('d').digest('hex'), (error, sockObj) => {
+        sockObj.onRecived((data, source, sport) => {
+            console.log(data, 'from:', source, sport);
+            sockObj.write("hallo welt zurück", source, sport, (r) => {
+
+            });
+        });
+    });
 })();
 

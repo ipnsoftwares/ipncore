@@ -10,7 +10,6 @@ const { dprintinfo } = require('../debug');
     const sodium = _sodium;
 
     var destpubk = '4d1363e238850ff3802e6ade30cc91cf8053769536a6ace6b41f7c0143c2a5fc';
-
     var k = sodium.crypto_sign_seed_keypair(crypto.createHash('sha256').update('key2').digest());
     var r = Node(sodium, k, []);
     console.log(Buffer.from(k.publicKey).toString('hex'))
@@ -29,10 +28,18 @@ const { dprintinfo } = require('../debug');
                     console.log('No route found');
                     return;
                 }
-                setTimeout(() => {
-                    console.log('GO')
-                    r.getAddressRawEndPoint(destpubk, (er, o) => { console.log('DONE'); })
-                }, 50);
+
+                const sock = crypto.createHash('sha256').update('d').digest('hex');
+                const testSocket = r.createNewLocalSocket(sock, (error, sockObj) => {
+
+                    sockObj.onRecived((data, source, sport) => {
+                        console.log(data, 'from:', source, sport);
+                    });
+
+                    sockObj.write('hallo welt', "4d1363e238850ff3802e6ade30cc91cf8053769536a6ace6b41f7c0143c2a5fc", sock, (r) => {
+
+                    })
+                });
             }, 2);
         }, 2000);
     });
