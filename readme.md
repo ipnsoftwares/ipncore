@@ -33,7 +33,7 @@ IPN Core is released under the terms of the MIT license. See
 
 
 ## 💲 **Support me:**
-- **BTC**: bc1pt4jfvgsylagskgcex9rwefufhzsv2qanwk9f77ullaft0hd4jy0s4870jh
+- **BTC**: bc1qgtdhpfa33z8pcy6sk9muvh0yjr4ufxgpqykdhl
 - **ETH**: 0xF0b7D4B2c21F4FE3645dBB312B8C2e08220B7f0d
 ---
 
