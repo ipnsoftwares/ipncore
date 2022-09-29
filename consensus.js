@@ -1,3 +1,5 @@
+const os = require('os');
+
 // Gibt die kleins Mögliche Version an
 const smallest_version = 10000000;
 
@@ -32,12 +34,10 @@ const ttl_for_routing_request = 120000;
 const max_package_byte_size = 1200000;
 
 // Gibt den Pfad des Unix Sockets für die Root freie API an
-const unix_socket_none_root_osx_path = `$TMPDIR/${current_network.toLowerCase()}/none_root_socket`;
-const unix_socket_none_root_path = `$TMPDIR/${current_network.toLowerCase()}/none_root_socket`;
+const unix_socket_none_root_path = `${os.tmpdir()}/${current_network.toLowerCase()}/`;
 
 // Gibt den Pfad des Unix Sockets für die Root API an
-const unix_socket_root_osx_path = `$TMPDIR/${current_network.toLowerCase()}/root_socket`;
-const unix_socket_root_path = `$TMPDIR/${current_network.toLowerCase()}/root_socket`;
+const unix_socket_root_path = `${os.tmpdir()}/${current_network.toLowerCase()}/`;
 
 // Speichert ab, ob es sich um eine Testversion handelt
 const is_mainnet = false;
@@ -103,9 +103,7 @@ module.exports = {
         i2p_based_transport_session_default_ttl:i2p_based_transport_session_default_ttl
     },
     socket_paths:{
-        unix_socket_none_root_osx_path:unix_socket_none_root_osx_path,
         unix_socket_none_root_path:unix_socket_none_root_path,
-        unix_socket_root_osx_path:unix_socket_root_osx_path,
         unix_socket_root_path:unix_socket_root_path
     }
 }

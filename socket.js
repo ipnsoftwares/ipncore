@@ -2,10 +2,15 @@ const events = require('events');
 
 
 
-const SocketTypes = {
-    RAW:0
-};
 
+// Gibt alle  Verfügabren Sockettypen an
+const SocketTypes = {
+    RAW:0,
+    DATAGRAMM:1,
+    SESSION:2,
+    STREAM:3,
+    IPTUN:4,
+};
 
 // Layer 2 Socket
 const Layer2Socket = (localNodeObject, localNodePrivKey, socketType, remoteAddress, localPort, remotePort, socketCreatedCallback) => {
@@ -88,14 +93,15 @@ const Layer2Socket = (localNodeObject, localNodePrivKey, socketType, remoteAddre
 };
 
 // Erzeugt einen neuen Socket ohne Spezifischen Address EndPunkt
-const createNewSocketWithoutRemoteEp = (localNode, localNodePrivKey, socketType, localPort, callback) => {
+const createLocalSocket = (localNode, localNodePrivKey, socketType, localPort, callback) => {
     return Layer2Socket(localNode, localNodePrivKey, socketType, null, localPort, null, (rerr, robj) => {
         callback(null, robj);
     });
 };
 
 
+// Die Module werden exportiert
 module.exports= {
-    createNewSocketWithoutRemoteEp:createNewSocketWithoutRemoteEp,
+    createLocalSocket:createLocalSocket,
     Socket:Layer2Socket, SockTypes:SocketTypes 
 };

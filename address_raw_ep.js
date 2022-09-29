@@ -159,6 +159,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
                 openPackageSendProcess = openPackageSendProcess.filter((ele) => { return ele != sendProcess; });
 
                 // Der Vorgang wird abgebrochen, der socket wurde noch nicht Vollständig eingerichtet oder ist nicht mehr bereit
+                console.log('KAPP');
                 callback('no_route_avail');
                 return;
             }

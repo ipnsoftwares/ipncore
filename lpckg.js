@@ -21,7 +21,6 @@ function verifyLayerThreePackage(packageData, extraAllowed=[]) {
 };
 
 
-
 module.exports = {
     createLayerTwoPackage:createLayerTwoPackage,
     verifyLayerThreePackage:verifyLayerThreePackage

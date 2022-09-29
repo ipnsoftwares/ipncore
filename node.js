@@ -1,5 +1,5 @@
-const { createNewSocketWithoutRemoteEp, SockTypes } = require('./socket');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
+const { createLocalSocket, SockTypes } = require('./socket');
 const { addressRawEndPoint } = require('./address_raw_ep');
 const { getHashFromDict, eccdsa } = require('./crypto');
 const { verifyLayerThreePackage } = require('./lpckg');
@@ -438,7 +438,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         const retrivedSocketEp = _openSockets.get(layertpackage.body.ebody.body.dport);
         if(retrivedSocketEp !== undefined) {
             // Es wird geprüft ob es für den Absender Port in Kombination mit dem Empfänger Port ein Socket vorhanden ist
-            const retrivedDestSocketEp = retrivedSocketEp.get(layertpackage.body.ebody.body.sport);
+            const retrivedDestSocketEp = retrivedSocketEp.get(layertpackage.body.ebody.body.dport);
             if(retrivedDestSocketEp !== undefined) {
                 // Das Paket wird an den Socket übergeben
                 retrivedDestSocketEp.enterPackage(layertpackage, connObj, null, (r) => callback(r))
@@ -1120,6 +1120,11 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         autFetchRoutePing: true,
     };
 
+    // Stellt alle API Funktionen bereit
+    const _API_FUNCTIONS = {
+
+    };
+
     // Wir verwendet um einen Websocket Server zu erstellen
     const addNewWSServer = (localPort, options=null) => {
         // Erzeugt ein neues Websocket Server objekt
@@ -1415,38 +1420,36 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Erstellt einen neuen Lokalen Socket
-    const createNewLocalSocket = (endPoint, callback) => {
-        // Es wird geprüft ob es für die Lokale Adresse bereits einen Eintrag gibt
-        const localSocketEntry = _openSockets.get(endPoint);
-        if(localSocketEntry !== undefined) {
-            // Der Vorgang wird abgebrochen, der Socket ist bereits vorhanden
-        }
-        else {
-            // Die RAW Funktion werden erweitert
-            const modfifRAWFunctions = {
-                ..._RAW_FUNCTIONS,
-                getAddressRawEndPoint:(destPublicKey, callback, addressRawEpConfig=_DEFAULT_ADDRESS_RAW_EP) => {
-                    return getAddressRawEndPoint(destPublicKey, callback, addressRawEpConfig);
-                }
+    const createNewLocalSocket = (localPort, callback, sockType=SockTypes.RAW) => {
+        // Es wird geprüft ob es bereits einen eintrag für diesen Socket gibt
+        const localSocketEntry = _openSockets.get(localPort);
+        if(localSocketEntry !== undefined) { callback('PORT_ALWAYS_USED'); return; }
+
+        // Die RAW Funktion werden erweitert
+        const modfifRAWFunctions = {
+            ..._RAW_FUNCTIONS,
+            getAddressRawEndPoint:(destPublicKey, callback, addressRawEpConfig=_DEFAULT_ADDRESS_RAW_EP) => {
+                return getAddressRawEndPoint(destPublicKey, callback, addressRawEpConfig);
             }
-
-            // Der Neue Socket wird erzeugt
-            const nea = new Map();
-            nea.set('*', createNewSocketWithoutRemoteEp(modfifRAWFunctions, localPrivateKeyPair, SockTypes.RAW, endPoint, (error, sockobj) => {
-                // Es wird geprüft ob ein Fehler aufgetreten ist
-                if(error !== null) { callback(error); return; }
-
-                // Die Callback Funktion wird aufgerufen
-                callback(null, sockobj);
-            }));
-
-            // Der Socket wird abgespeichert
-            _openSockets.set(endPoint, nea);
         }
+
+        // Der Neue Socket wird erzeugt
+        const newEntry = new Map();
+        newEntry.set('*', createLocalSocket(modfifRAWFunctions, localPrivateKeyPair, sockType, localPort, (error, sockobj) => {
+            // Es wird geprüft ob ein Fehler aufgetreten ist
+            if(error !== null) { callback(error); return; }
+
+            // Die Callback Funktion wird aufgerufen
+            callback(null, sockobj);
+        }));
+
+        // Der Socket wird abgespeichert
+        _openSockets.set(localPort, newEntry);
     };
 
     // Das Objekt wird zurückgegben
     return {
+        apiFunctions:_API_FUNCTIONS,
         addNewWSServer:addNewWSServer,
         initAddressRoute:initAddressRoute,
         createNewLocalSocket:createNewLocalSocket,
