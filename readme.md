@@ -1,4 +1,4 @@
-# 🌍 **Interplanetary Network (IPN) -- Milestone 2** 👽
+# 🌍 **Interplanetary Network (IPN) -- Milestone 1** 👽
 
 
 ## 👍 **The following functions are supported:**
