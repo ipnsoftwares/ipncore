@@ -12,7 +12,7 @@
 
 Select language: EN | [DE](./README_eu_DE.md)
 
-The Interplanetray Network is an open-source, decentralized P2P network that aims to enable a simple connection between 2 or more devices. It doesn't matter whether the device is in Tor, in i2p or in the "normal" Internet. Anyone can create a secp256k1 or an ed25519 key and use the public key as an address within the IPN to establish a P2P connection. If a direct connection at the IP level is possible, the IPN core software automatically connects to the opposite peer.
+The Interplanetray Network is an open-source, decentralized P2P network that aims to enable a simple connection between 2 or more devices. It doesn't matter whether the device is in Tor, in i2p or in the "normal" Internet. Anyone can create an ed25519 key and use the public key as an address within the IPN to establish a P2P connection. If a direct connection at the IP level is possible, the IPN core software automatically connects to the opposite peer.
 
 
 ## 👍 **The following functions are supported:**
@@ -56,7 +56,6 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
 - [ ] [Crypto algorithms (INIP0004):](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
   - [X] [ED25519 / Curve25519 (Sodium)](https://github.com/paixaop/node-sodium#readme)
   - [ ] [FROST-Ed25519](https://docs.rs/frost-dalek/latest/frost_dalek/)
-  - [ ] [SECP256k1](https://github.com/paulmillr/noble-secp256k1)
   - [ ] [AES256-Bit](https://github.com/brix/crypto-js)
 - [ ] Network protocols:
   - [x] [Websocket](https://en.wikipedia.org/wiki/WebSocket) | [INIP0002](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
