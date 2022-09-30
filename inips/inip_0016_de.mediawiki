@@ -1,6 +1,6 @@
 <pre>
   INIP: 16
-  Title: 
+  Title: Lokale Kommunikation zwischen einem Prozess und dem IPN-Core Dienst
   Autor: LeTaylor
   Comments-Summary: Noch keine Kommentare.
   Status: Final
