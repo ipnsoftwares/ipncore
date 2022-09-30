@@ -8,30 +8,24 @@
 [![GitHub license](https://badgen.net/github/license/Naereen/Strapdown.js)](https://github.com/Naereen/StrapDown.js/blob/master/LICENSE)
 [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/fluffelpuffcode)
 
-<br>
 
 ## 👍 **The following functions are supported:**
 - [Decentralized routing protocol (Artemis Protocol | INIP0001)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0001_de.mediawiki)
 - [Bootnode support and hardcoded swarm nodes to initialize the network (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
 
-<br>
 
 ## 🌍 **Supported network protocols:**
 - [Websocket (WS/WSS) (INIP0002)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
 
-<br>
 
 ## 🔐 **Support cryptographic methods:**
 - [ED25519 / Curve25519 (INIP0004)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
 - [Chacha20-Poly1305 (INIP0004)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
 
-<br>
 
 ## 🚀🍾 **Communities:** 
 * [Interplanetary Network (IPN) Twitter](https://twitter.com/fluffelpuffcode)
 
-
-<br>
 
 ## 📚 **Available libraries / API's:**
 | Language                                                      | State               | Improvement Proposal                                                                              | Full Library |
@@ -43,13 +37,10 @@
 | C#                                                            | 🚫 Work not started |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ❌ No     |
 
 
-<br>
-
 ## 💲 **Support me:**
 - **BTC**: bc1pt4jfvgsylagskgcex9rwefufhzsv2qanwk9f77ullaft0hd4jy0s4870jh
 - **ETH**: 0xF0b7D4B2c21F4FE3645dBB312B8C2e08220B7f0d
 
-<br>
 
 ## ✅ **To do list:**
 - [ ] Power Routing over Distributed hash table DHT
@@ -70,7 +61,6 @@
   - [ ] [TOR](https://en.wikipedia.org/wiki/Tor_(network))
   - [ ] [i2p](https://en.wikipedia.org/wiki/I2P)
 
-<br>
 
 ## ⚖️ **License - Much license:**
 IPN Core is released under the terms of the MIT license. See
