@@ -1,42 +1,47 @@
-# 🌍 **Interplanetary Network (IPN) -- Milestone 1** 👽
+# 🌍 **Interplanetary Network (IPN) -- Milestone 2** 👽
 
-
-## 👍 **The following functions are supported:**
+## 👍 **The following functions are supported**
 - [Decentralized routing protocol (Artemis Protocol | INIP0001)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0001_de.mediawiki)
 - [Bootnode support and hardcoded swarm nodes to initialize the network (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
 ---
 
 
-## 🌍 **Supported network protocols:**
+## 🌍 **Supported network protocols**
 - [Websocket (WS/WSS) (INIP0002)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
 ---
 
 
-## 🔐 **Support cryptographic methods:**
+## 🔐 **Support cryptographic methods**
 - [ED25519 / Curve25519 (INIP0004)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
 - [Chacha20-Poly1305 (INIP0004)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
 ---
 
 
-## 🚀🍾 **Communities:** 
+## 🚀🍾 **Communities** 
 * [Interplanetary Network (IPN) Twitter](https://twitter.com/fluffelpuffcode)
 
 ---
 
 
-## ⚖️ **License - Much license:**
+## ⚖️ **License - Much license**
 IPN Core is released under the terms of the MIT license. See
 [COPYING](COPYING) for more information or see
 [opensource.org](https://opensource.org/licenses/MIT)
-
 ---
 
 
-## 💲 **Support me:**
-- **BTC**: bc1qgtdhpfa33z8pcy6sk9muvh0yjr4ufxgpqykdhl
+## 💲 **Support me**
+- **BTC**: bc1pt4jfvgsylagskgcex9rwefufhzsv2qanwk9f77ullaft0hd4jy0s4870jh
 - **ETH**: 0xF0b7D4B2c21F4FE3645dBB312B8C2e08220B7f0d
 ---
 
+
+## **Available libraries / APIs**
+| Command | Description |
+| --- | --- |
+| git status | List all new or modified files |
+| git diff | Show file differences that haven't been staged |
+---
 
 ## ✅ **To do list:**
 - [ ] Power Routing over Distributed hash table DHT
@@ -53,7 +58,7 @@ IPN Core is released under the terms of the MIT license. See
   - [ ] Javascript / NodeJS
   - [ ] Java / Kotlin
   - [ ] C / C++
-  - [ ] Python
+  - [ ] [Python](https://github.com/fluffelpuff/ipn-github-bootnoding/blob/main/README.md)
   - [ ] Rust
   - [ ] C#
 - [ ] Network protocols:
