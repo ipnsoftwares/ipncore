@@ -12,7 +12,7 @@
 
 Select language: EN | [DE](./README_eu_DE.md)
 
-The Interplanetray Network is an open-source, decentralized P2P network that aims to enable a simple connection between 2 or more devices. It doesn't matter whether the device is in Tor, in i2p or in the "normal" Internet. Anyone can create an ed25519 key and use the public key as an address within the IPN to establish a P2P connection. If a direct connection at the IP level is possible, the IPN core software automatically connects to the opposite peer.
+The Interplanetray Network is an open-source, decentralized P2P network that aims to enable a simple connection between 2 or more devices. It doesn't matter whether the device is in Tor, in i2p or in the "normal" Internet. Anyone can create an ed25519 ([EdDSA](https://en.wikipedia.org/wiki/EdDSA) / [curve25519](https://en.wikipedia.org/wiki/Curve25519)) key and use the public key as an address within the IPN to establish a P2P connection. If a direct connection at the IP level is possible, the IPN core software automatically connects to the opposite peer.
 
 
 ## 👍 **The following functions are supported:**
