@@ -49,10 +49,13 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
 
 
 ## ✅ **To do list:**
-- [ ] Power Routing over Distributed hash table DHT
-- [ ] Commandline Console for IPN-Core Service
-- [ ] [DNS Node seeding (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
+- [ ] [(₿) Bitcoin support](https://en.bitcoin.it/wiki/Main_Page)
 - [ ] [DDoS Protection (INIP0013)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0013_de.mediawiki)
+- [ ] [DNS Node seeding (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
+- [ ] [Uniform address format (INIP0010)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0010_de.mediawiki)
+- [ ] [API / IPC Protocol / Support (IPN0016)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)
+- [ ] Commandline Console for IPN-Core Service
+- [ ] Power Routing over Distributed hash table (DHT)
 - [ ] Network protocols:
   - [x] [Websocket](https://en.wikipedia.org/wiki/WebSocket) | [INIP0002](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
   - [ ] [QUIC](https://en.wikipedia.org/wiki/QUIC)
@@ -62,6 +65,19 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
   - [ ] [TOR](https://en.wikipedia.org/wiki/Tor_(network))
   - [ ] [i2p](https://en.wikipedia.org/wiki/I2P)
 
+## 😶 **Third Party Libraries:**
+- [base58-js (^1.0.4)](https://www.npmjs.com/package/base58-js)
+- [bech32 (^2.0.0)](https://github.com/bitcoinjs/bech32)
+- [cobr (^8.1.0)](https://www.npmjs.com/package/cbor)
+- [figlet (^1.5.2)](https://www.npmjs.com/package/figlet)
+- [ip6addr (^0.2.5)](https://www.npmjs.com/package/ip6addr)
+- [js-sha3 (^0.8.0)](https://www.npmjs.com/package/js-sha3)
+- [moment (^2.29.4)](https://www.npmjs.com/package/moment)
+- [ws (^8.8.1)](https://www.npmjs.com/package/ws)
+- [yargs (^17.5.1)](https://www.npmjs.com/package/yargs)
+- [rfc-3548-b32 (^0.0.2)](https://www.npmjs.com/package/rfc-3548-b32)
+- [rfc-4122 (^8.3.2)](https://www.npmjs.com/package/uuid)
+- [libsodium-wrappers (^0.7.10)](https://www.npmjs.com/package/libsodium-wrappers)
 
 ## ⚖️ **License - Much license:**
 IPN Core is released under the terms of the MIT license. See
