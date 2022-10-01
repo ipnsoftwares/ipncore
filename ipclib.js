@@ -184,6 +184,11 @@ function initRequestConnection(nodeObj, client) {
     });
 };
 
+// Wird als Verbindungssocket für Socket Kommunikationen verwendet
+function initSocketConnection(nodeObj, client) {
+
+};
+
 // Bereitet den Shared Memory für die API auf Systemebene vor
 const createSystemSharedMemoryAPI = (nodeObj, callback) => {
     // Wird verwendet um den eigentlichen Socket zu starten
@@ -192,14 +197,10 @@ const createSystemSharedMemoryAPI = (nodeObj, callback) => {
         const socketFunctions = {};
 
         // Wird für Request Anfragen verwendet
-        var requestSocket = net.createServer((client) => {
-            initRequestConnection(nodeObj, client);
-        });
+        var requestSocket = net.createServer((client) => { initRequestConnection(nodeObj, client); });
 
         // Wird für Sockets verwendet
-        var socketIoSocket = net.createServer((client) => {
-
-        });
+        var socketIoSocket = net.createServer((client) => { initSocketConnection(nodeObj, client); });
 
         // Der UnixSocket für die Request Anfragen wird erstellt
         requestSocket.listen(requestSocketPath, (e) => {
@@ -254,3 +255,23 @@ module.exports = {
     createSystemSharedMemoryAPI:createSystemSharedMemoryAPI 
 };
 
+
+
+
+///// Test
+const node = {
+    getAllConnections:(root, callback) => {
+        callback([
+            { version:10000, node_key:"ipnb3ypvi4jhdqekzt233yzdpzfmxro7miu2io6oxunl3xnxnernsa5qd6q", end_point:"0.0.0.0", connected_since:"000-00-00 00:00:00" },
+            { version:10000, node_key:"ipnbuplxf6ydxver4omnf2fehewcowqve3pmp3gjrdyvftxvpzdnqjracxq", end_point:"0.0.0.0", connected_since:"000-00-00 00:00:00" },
+            { version:10000, node_key:"ipnbokk5ndlgypwtw5s6iq5tur7d45wc5l2akbqeycnyefr2ruq2bjeqcna", end_point:"0.0.0.0", connected_since:"000-00-00 00:00:00" },
+        ]);
+    },
+    getAllKnownAddressRoutes:(root, callback) => {
+        callback([
+            { address:"ipnb3ypvi4jhdqekzt233yzdpzfmxro7miu2io6oxunl3xnxnernsa5qd6q", route_known_since:"000-00-00 00:00:00" },
+            { address:"ipnbuplxf6ydxver4omnf2fehewcowqve3pmp3gjrdyvftxvpzdnqjracxq", route_known_since:"000-00-00 00:00:00" },
+            { address:"ipnbokk5ndlgypwtw5s6iq5tur7d45wc5l2akbqeycnyefr2ruq2bjeqcna", route_known_since:"000-00-00 00:00:00" },
+        ]);
+    }
+}

@@ -53,16 +53,30 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         cb();
     };
 
+    // Wird verwendet um allen Vorgängen zu Signalisieren dass eine Route verfügbar ist
+    const _ROUTE_AVAIL_EVENT = () => {
+
+    }
+
     // Wird ausgeführt wenn keine Peer für diese Adresse verüfgbar ist
     routeEP.registerEvent('allRoutesForAddressClosed', () => {
         // Dem Objekt wird Signalisiert dass keine Route verfüfbar ist
         objectState = ADR_EP_STATES.KILLING_SOCKETS;
 
-        // Der Callback vorgang wird aufgerufen
+        // Es wird allen Sockets signalisiert dass kein Peer für diese Route mehr verfügbar ist
         _NO_ROUTES_EVENTS(() => {
             // Dem Objekt wird Signalisiert dass es erfolgreich geschlossen wurde
             objectState = ADR_EP_STATES.CLOSED;
         });
+    });
+
+    // Wird ausgeführt sobald mindestens ein Peer für diese Adresse verfügbar ist
+    routeEP.registerEvent('routeForAddressAvailale', () => {
+        // Dem Objekt wird Signalisiert dass keine Route verfüfbar ist
+        objectState = ADR_EP_STATES.OPEN;
+
+        // Es wird Signalisiert dass eine Route verfügbar ist
+        _ROUTE_AVAIL_EVENT();
     });
 
     // Signiert ein Paket mit dem Lokalen Schlüssel
