@@ -39,6 +39,9 @@ const unix_socket_none_root_path = `${os.tmpdir()}/${current_network.toLowerCase
 // Gibt den Pfad des Unix Sockets für die Root API an
 const unix_socket_root_path = `${os.tmpdir()}/${current_network.toLowerCase()}/`;
 
+// Speichert die GitHub Url für die Bootnoding Listen ab
+const github_bootnode_list_url = 'https://raw.githubusercontent.com/fluffelpuff/ipn-github-bootnoding/main/';
+
 // Speichert ab, ob es sich um eine Testversion handelt
 const is_mainnet = false;
 
@@ -86,6 +89,7 @@ module.exports = {
     bootnode_public_ip_addresses:bootnode_public_ip_addresses,
     bootnode_public_dns_names:bootnode_public_dns_names,
     main_blocked_public_keys:main_blocked_public_keys,
+    github_bootnode_list_url:github_bootnode_list_url,
     ttl_for_routing_request:ttl_for_routing_request,
     max_package_byte_size:max_package_byte_size,
     routingPingPackage:routingPingPackage,
