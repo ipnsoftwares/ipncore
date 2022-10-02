@@ -33,6 +33,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     // Speichert alle Dienste einer Verbindung ab
     const _openPeerServices = new Map();
 
+    // Speichert alle Serversockets ab
+    const _serverSockets = new Map();
+
     // Speichert alle Offenen Sockets ab
     const _openSockets = new Map();
 
@@ -1129,6 +1132,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     const addNewWSServer = (localPort, options=null) => {
         // Erzeugt ein neues Websocket Server objekt
         const serverObj = wsServer(_SOCKET_FUNCTIONS, localPort, localNodeFunctions);
+
+        // Das Serverobjekt wird abgespeichert
     };
 
     // Wird verwendet um eine Webserver verbindung herzustellen

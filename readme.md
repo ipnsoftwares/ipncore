@@ -44,8 +44,8 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
 
 
 ## 💲 **Support me**
-- **BTC**: bc1qy5pv8kx23vxnpfxx0y5nayl8220zzl6phu7zx7
-- **ETH**: 0xF0b7D4B2c21F4FE3645dBB312B8C2e08220B7f0d
+- **BTC**: [bc1qy5pv8kx23vxnpfxx0y5nayl8220zzl6phu7zx7](https://www.blockchain.com/btc/address/bc1qy5pv8kx23vxnpfxx0y5nayl8220zzl6phu7zx7)
+- **ETH**: [0xF0b7D4B2c21F4FE3645dBB312B8C2e08220B7f0d](https://etherscan.io/address/0xF0b7D4B2c21F4FE3645dBB312B8C2e08220B7f0d)
 
 
 ## ✅ **To do list**
@@ -56,6 +56,7 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
 - [ ] [API / IPC Protocol / Support (IPN0016)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)
 - [ ] Commandline Console for IPN-Core Service
 - [ ] Power Routing over Distributed hash table (DHT)
+- [ ] Optimization for mobile devices
 - [ ] Network protocols:
   - [x] [Websocket](https://en.wikipedia.org/wiki/WebSocket) | [INIP0002](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
   - [ ] [QUIC](https://en.wikipedia.org/wiki/QUIC)

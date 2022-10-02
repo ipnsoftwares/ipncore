@@ -7,6 +7,7 @@ const crypto = require('crypto');
 (async() => {
     await _sodium.ready;
     const sodium = _sodium;
+    sodium.crypto_sign_ed25519_pk_to_curve25519()
 
     var k = sodium.crypto_sign_seed_keypair(crypto.createHash('sha256').update('key1').digest());
     var n = Node(sodium, k);

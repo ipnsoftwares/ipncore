@@ -1,8 +1,8 @@
-const { getHashFromDict, createRandomSessionId, eccdsa } = require('./crypto');
+const { getHashFromDict, createRandomSessionId, encrypt_data, decrypt_data } = require('./crypto');
 const { dprintok, dprinterror, colors } = require('./debug');
 const { WebSocketServer, WebSocket } = require('ws');
-const { v4: uuidv4, v4 } = require('uuid');
 const consensus = require('./consensus');
+const { v4: uuidv4 } = require('uuid');
 const cbor = require('cbor');
 
 
@@ -35,6 +35,9 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
 
     // Gibt an ob die Verbindung Registriert wurde
     var _connectionIsInited = false;
+
+    // Speichert den DH-Schlüssel der Sitzung ab
+    var _sessionSharedSecre = null;
 
     // Speichert den PingPong Timer ab
     var _pingPongTimer = null;
@@ -86,6 +89,12 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
                 callback(false);
             }
         })
+    };
+
+    // Wird Verwendet um ein Sitzungspaket zu versenden
+    const _SEND_RAW_BASED_PACKAGE = (rawPackage, callback) => {
+        // Das Basispaket wird gebaut
+
     };
 
     // Speichert alle Objekt funktionen ab
@@ -257,7 +266,7 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
 
         // Der Öffentliche Schlüssel wird geschrieben
         _destinationPublicKey = package_data.pkey;
-        
+
         // Sofern vorhanden wird der Init Timer gestoppt
         if(_initTimer !== null) { clearTimeout(_initTimer); _initTimer = null; }
 
@@ -342,7 +351,15 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
     // Nimt Pakete bei einer Initalisierten Verbindung entgegen
     const _ENTER_PACKAGE_ON_INITED_CONNECTION = (jsonEncodedPackage) => {
         // Es wird versucht die Daten zu entschlüssen
-        
+        encrypt_data(jsonEncodedPackage, (error, decrypted) => {
+            // Es wird geprüft ob ein Fehler aufgetreten ist, wenn ja wird der Vorgang abegrochen
+            if(error !== null) {
+                return
+            }
+
+            // Es wird geprüft ob es sich um ein gültiges Layer 1 Paket handelt
+
+        });
 
         // Es wird geprüft ob der Öffentliche Schlüssel sowie die Signatur vorhanden ist
         if(!_VERIFY_PACKAGE_SIGNATURE(jsonEncodedPackage)) {
@@ -490,7 +507,6 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
     return { isInited:() => _connectionIsInited, close:() => _CLOSE_CONNECTION }
 }
 
-
 // Baut eine ausgehende Verbindung auf
 const wsConnectTo = (localeNodeObject, serverUrl, sfunctions=[], accepted_functions=['boot_node'], callback=null, connectionClosedCallback=null) => {
     // Das Websocket Objekt wird vorbereitet
@@ -512,9 +528,11 @@ const wsConnectTo = (localeNodeObject, serverUrl, sfunctions=[], accepted_functi
     });
 }
 
-
 // Erstellt einen neuen Lokalen Server
 const wsServer = (localeNodeObject, localPort, sfunctions=[]) => {
+    // Es wird ein ID für deas Serverobjekt erzeugt
+    const objId = v4();
+
     // Der Webserver wird gestartet
     const wss = new WebSocketServer({ port: localPort });
 
@@ -531,8 +549,15 @@ const wsServer = (localeNodeObject, localPort, sfunctions=[]) => {
     });
 
     // Gibt das Serverobjekt zurück
-    dprintok(10, ['New websocket server created on'], [colors.FgMagenta, localPort])
-    return { close:() => {} };
+    dprintok(10, ['New websocket server created on'], [colors.FgMagenta, localPort], ['with id'], [colors.FgCyan, objId])
+    return {
+        _id:objId,
+        startedSince:null,
+        privateKey:null,
+        close:() => {
+            
+        },
+    };
 }
 
 

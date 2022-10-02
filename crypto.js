@@ -90,11 +90,29 @@ function crypto_verify_sig(crypto_algo, message, sig, public_key) {
     }
 };
 
+// Entschlüsselt einen Datensatz
+function decrypt_data(dataset, callback) {
+
+};
+
+// Verschlüsselt einen Datensatz
+function encrypt_data(dataset, callback) {
+
+};
+
+// Wird verwendet um eine Shared Secret zu ersstellen
+function compute_shared_secret(privKey, pubKey, callback) {
+
+};
+
 
 module.exports = {
     initCrypto:init_crypto,
     getHashFromDict:getHashFromDict,
     createRandomSessionId:createRandomSessionId,
+    compute_shared_secret:compute_shared_secret,
+    decrypt_data:decrypt_data,
+    encrypt_data:encrypt_data,
     eccdsa:{
         crypto_algo:CRYPTO_ALGO,
         crypto_sign_seed_keypair:crypto_sign_seed_keypair,
