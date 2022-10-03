@@ -11,7 +11,8 @@ const ADR_EP_STATES = {
     CLOSED:2,                           // Die Adresse muss neu Initalisiert werden, da keine Routen mehr Verfügbar sind
     OPEN:3,                             // Gibt an dass das Objekt verwendet werden kann
     ABORTED:4,                          // Gibt an das der Initalisierungsvorgang fehgeschlagen ist
-    INITING:5                           // Gibt an dass das Objekt sich in der Vobereitung befindet
+    INITING:5,                          // Gibt an dass das Objekt sich in der Vobereitung befindet
+    REOPENING:6,                        // Gibt an dass die Verbindung neu Initalisiert wird
 };
 
 // Stellt einen Address to Adress RAW EndPoint dar
@@ -36,8 +37,6 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
     // Wird verwendet um allen Vorägngen zu Signalisieren dass derzeit keine Routen mehr Verfügbar sind, alle Sockets werden geschlossen
     const _NO_ROUTES_EVENTS = (cb) => {
-        console.log(_openPingProcesses, _openSockets)
-
         // Es werden alle Offenen Ping Vorgänge geschlossen
         for(const otem of Array.from(_openPingProcesses)) {
             const objtemp = _openPingProcesses.get(otem);
@@ -54,9 +53,9 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     };
 
     // Wird verwendet um allen Vorgängen zu Signalisieren dass eine Route verfügbar ist
-    const _ROUTE_AVAIL_EVENT = () => {
-
-    }
+    const _ROUTE_AVAIL_EVENT = (cb) => {
+        cb(true);
+    };
 
     // Wird ausgeführt wenn keine Peer für diese Adresse verüfgbar ist
     routeEP.registerEvent('allRoutesForAddressClosed', () => {
@@ -71,12 +70,24 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     });
 
     // Wird ausgeführt sobald mindestens ein Peer für diese Adresse verfügbar ist
-    routeEP.registerEvent('routeForAddressAvailale', () => {
-        // Dem Objekt wird Signalisiert dass keine Route verfüfbar ist
-        objectState = ADR_EP_STATES.OPEN;
+    routeEP.registerEvent('routeForAddressAvailable', () => {
+        // Es wird geprüft ob dieser Vorgang bereits durchgeführt wurde
+        if(objectState === ADR_EP_STATES.CLOSED) {
+            // Es wird geprüft ob eine Route verfügbar ist
+            routeEP.isUseable().then((r) => {
+                // Es wird geprüft ob eine Route verfügbar ist
+                if(r === true) {
+                    // Dem Objekt wird Signalisiert dass mindestens eine Route verfügbar ist
+                    objectState = ADR_EP_STATES.REOPENING;
 
-        // Es wird Signalisiert dass eine Route verfügbar ist
-        _ROUTE_AVAIL_EVENT();
+                    // Es wird signalisiert das eine Route verfügbar ist
+                    _ROUTE_AVAIL_EVENT((r) => {
+                        // Dem Objekt wird Signalisiert dass mindestens eine Route verfügbar ist
+                        objectState = ADR_EP_STATES.OPEN;
+                    });
+                }
+            });
+        }
     });
 
     // Signiert ein Paket mit dem Lokalen Schlüssel

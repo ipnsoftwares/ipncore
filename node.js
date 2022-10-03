@@ -1131,9 +1131,10 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     // Wir verwendet um einen Websocket Server zu erstellen
     const addNewWSServer = (localPort, options=null) => {
         // Erzeugt ein neues Websocket Server objekt
-        const serverObj = wsServer(_SOCKET_FUNCTIONS, localPort, localNodeFunctions);
+        const serverObj = wsServer(localPrivateKeyPair, _SOCKET_FUNCTIONS, localPort, localNodeFunctions);
 
         // Das Serverobjekt wird abgespeichert
+        _serverSockets.set(serverObj._id, serverObj);
     };
 
     // Wird verwendet um eine Webserver verbindung herzustellen
@@ -1168,7 +1169,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             };
 
             // Die Websocket Verbindung wird aufgebaut
-            wsConnectTo(_SOCKET_FUNCTIONS, readedURL.toString(), localNodeFunctions, accepted_functions, _FNC_OPEN_CONNECTION, _FNC_CLOSED_CONNECTION);
+            wsConnectTo(localPrivateKeyPair, _SOCKET_FUNCTIONS, readedURL.toString(), localNodeFunctions, accepted_functions, _FNC_OPEN_CONNECTION, _FNC_CLOSED_CONNECTION);
         }
     };
 

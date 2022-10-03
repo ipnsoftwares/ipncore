@@ -1,14 +1,14 @@
-const { getHashFromDict, createRandomSessionId, encrypt_data, decrypt_data } = require('./crypto');
+const { getHashFromDict, createRandomSessionId, encrypt_data, compute_shared_secret } = require('./crypto');
 const { dprintok, dprinterror, colors } = require('./debug');
 const { WebSocketServer, WebSocket } = require('ws');
 const consensus = require('./consensus');
-const { v4: uuidv4 } = require('uuid');
+const { v4 } = require('uuid');
 const cbor = require('cbor');
 
 
 
 // Stellt eine Verbindung dar
-const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=false, sfunctions=[], clrqfunctions=[], callbackAfterConnected=null, connectionClosedCallback=null) => {
+const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddress, incomming=false, sfunctions=[], clrqfunctions=[], callbackAfterConnected=null, connectionClosedCallback=null) => {
     // Speichert die Aktuelle SessionID dieser Verbindung ab
     let _currentSessionId = createRandomSessionId();
 
@@ -37,7 +37,7 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
     var _connectionIsInited = false;
 
     // Speichert den DH-Schlüssel der Sitzung ab
-    var _sessionSharedSecre = null;
+    var _sessionSharedSecret = null;
 
     // Speichert den PingPong Timer ab
     var _pingPongTimer = null;
@@ -65,9 +65,6 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
         // Das Paket wird mittels CBOR Umgewandelt
         const convertedCborPackage = cbor.encode(signatedPackage);
 
-        // Das Paket wird Verschlüsselt
-
-
         // Das Paket wird versendet
         wsConnObject.send(convertedCborPackage, (serr) => {
             // Es wird geprüft ob die Daten gesendet werden konnten
@@ -92,9 +89,14 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
     };
 
     // Wird Verwendet um ein Sitzungspaket zu versenden
-    const _SEND_RAW_BASED_PACKAGE = (rawPackage, callback) => {
+    const _SEND_UNSIGNATED_RAW_PACKAGE = (rawPackage, callback) => {
         // Das Basispaket wird gebaut
+        const baseRAWPackage = { version:consensus.version, ...rawPackage };
 
+        // Es wird ein Hash aus dem Paket erzeugt
+        const packageHash = getHashFromDict(baseRAWPackage);
+
+        // 
     };
 
     // Speichert alle Objekt funktionen ab
@@ -166,7 +168,7 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
     // Wird aller 5 Sekunden ausgeführt und führt einen Ping innerhalb der Aktuellen Verbindung durch
     const _PING_PONG_TIMER = () => {
         // Es wird ein Zufälliger Wert erzeugt
-        const pingPackageID = uuidv4();
+        const pingPackageID = v4();
 
         // Das Pingpaket wird an die gegenseite übermittelt
         wsConnObject.ping(pingPackageID, () => { _openPingProcesses[pingPackageID] = Date.now(); });
@@ -290,9 +292,15 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
             _peerProtFunctions.push(package_data.protf[i]);
         }
 
-        // Das HelloPackage wird an die gegenseite gesendet, sofern es sich um eine Ausgehdene Verbindung handelt
-        if(!incomming) _SEND_HELLO_PACKAGE_TO_PEER(() => _CALL_AFTER_SUCCS_CONNECTED());
-        else _CALL_AFTER_SUCCS_CONNECTED();
+        // Der DH-Schlüssel für die Sitzung wird erzeut
+        compute_shared_secret(Buffer.from(socketKeyPair.privateKey),  Buffer.from(package_data.pkey, 'hex'), (error, result) => {
+            // Der DH-Schlüssel wird abgespeichert
+            _sessionSharedSecret = result;
+
+            // Das HelloPackage wird an die gegenseite gesendet, sofern es sich um eine Ausgehdene Verbindung handelt
+            if(!incomming) _SEND_HELLO_PACKAGE_TO_PEER(() => _CALL_AFTER_SUCCS_CONNECTED());
+            else _CALL_AFTER_SUCCS_CONNECTED();
+        });
     };
 
     // Wird ausgeführt wenn die Verbindung geschlossen wurde
@@ -508,7 +516,7 @@ const wsConnection = (localeNodeObject, wsConnObject, sourceAddress, incomming=f
 }
 
 // Baut eine ausgehende Verbindung auf
-const wsConnectTo = (localeNodeObject, serverUrl, sfunctions=[], accepted_functions=['boot_node'], callback=null, connectionClosedCallback=null) => {
+const wsConnectTo = (socketKeyPair, localeNodeObject, serverUrl, sfunctions=[], accepted_functions=['boot_node'], callback=null, connectionClosedCallback=null) => {
     // Das Websocket Objekt wird vorbereitet
     const ws = new WebSocket(serverUrl);
 
@@ -518,7 +526,7 @@ const wsConnectTo = (localeNodeObject, serverUrl, sfunctions=[], accepted_functi
     // Wird ausgeführt wenn die Verbindung hergestellt wurde
     ws.on('open', () => {
         dprintok(10, ['New outgoing websocket connection established with'], [colors.FgMagenta, serverUrl]);
-        _initedObject = wsConnection(localeNodeObject, ws, serverUrl, false, sfunctions, accepted_functions, callback, connectionClosedCallback);
+        _initedObject = wsConnection(socketKeyPair, localeNodeObject, ws, serverUrl, false, sfunctions, accepted_functions, callback, connectionClosedCallback);
     });
 
     // Wird bei einem Fehler ausgeführt
@@ -529,7 +537,7 @@ const wsConnectTo = (localeNodeObject, serverUrl, sfunctions=[], accepted_functi
 }
 
 // Erstellt einen neuen Lokalen Server
-const wsServer = (localeNodeObject, localPort, sfunctions=[]) => {
+const wsServer = (socketKeyPair, localeNodeObject, localPort, sfunctions=[]) => {
     // Es wird ein ID für deas Serverobjekt erzeugt
     const objId = v4();
 
@@ -545,17 +553,17 @@ const wsServer = (localeNodeObject, localPort, sfunctions=[]) => {
         dprintok(10, ['Accepted new incoming websocket connection from'], [colors.FgMagenta, req.socket.remoteAddress]);
 
         // Die Verbindung wird erstellt
-        wsConnection(localeNodeObject, ws, newUrlAddress, true, sfunctions);
+        wsConnection(socketKeyPair, localeNodeObject, ws, newUrlAddress, true, sfunctions);
     });
 
     // Gibt das Serverobjekt zurück
-    dprintok(10, ['New websocket server created on'], [colors.FgMagenta, localPort], ['with id'], [colors.FgCyan, objId])
+    dprintok(10, ['New websocket server created on'], [colors.FgMagenta, localPort], ['with id'], [colors.FgCyan, objId]);
     return {
         _id:objId,
         startedSince:null,
         privateKey:null,
         close:() => {
-            
+
         },
     };
 }

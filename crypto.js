@@ -1,6 +1,7 @@
 const { binary_to_base58 } = require('base58-js');
 const _sodium = require('libsodium-wrappers');
 const crypto = require('crypto');
+const { SHA3 } = require('sha3');
 const cbor = require('cbor');
 
 
@@ -18,8 +19,9 @@ const CRYPTO_ALGO = {
 // Erstellt einen Hash aus einem Dict
 function getHashFromDict(jsonDict) {
     const ordered = Object.keys(jsonDict).sort().reduce((obj, key) => { obj[key] = jsonDict[key]; return obj; },{});
-    const hash = crypto.createHash('sha256').update(cbor.encode(ordered)).digest();
-    return hash;
+    const hashx = crypto.createHash('sha256').update(cbor.encode(ordered)).digest();
+    const hash = new SHA3(384);
+    return hash.digest();
 };
 
 // Erstellt eine Zufällige SessionID ab
@@ -102,7 +104,26 @@ function encrypt_data(dataset, callback) {
 
 // Wird verwendet um eine Shared Secret zu ersstellen
 function compute_shared_secret(privKey, pubKey, callback) {
+    // Es wird geprüft ob Sodium Initalisiert wurde
+    if(_crypto_sodium_modul === null) { callback('no_crypto_lib_loaded'); return; }
 
+    // Es wird geprüft ob es sich um einen ED25519 PublicKey handelt
+    if(pubKey.length !== 32) { callback('invalid_public_key'); return; }
+
+    // Es wird geprüft ob es sich um einen ED25519 PrivateKey handelt
+    if(privKey.length !== 64) { callback('invalid_private_key'); return; }
+
+    // Es wird versucht aus dem Öffentlichen ED25519 Schlüssel einen Curve25519 Schlüssel zu erzeugen
+    const curve25519PublicKey = _crypto_sodium_modul.crypto_sign_ed25519_pk_to_curve25519(new Uint8Array(pubKey));
+
+    // Es wird versucht aus dem Privaten ED25519 Schlüssel einen Curve25519 Schlüssel zu erzeugen
+    const curve25519PrivateKey = _crypto_sodium_modul.crypto_sign_ed25519_sk_to_curve25519(new Uint8Array(privKey));
+
+    // Aus dem Öffentlichen Curve25519 Schlüssel sowie aus dem Privaten Curve25519 Schlüsel wird eine DH-Schlüssel erzeugt
+    const computedDhSecrtKey = _crypto_sodium_modul.crypto_scalarmult(curve25519PrivateKey, curve25519PublicKey);
+
+    // Der Schlüssel wird als Buffer zurückgegeben
+    callback(null, Buffer.from(computedDhSecrtKey));
 };
 
 

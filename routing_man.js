@@ -104,9 +104,14 @@ const routingManager = (signWithNodeKey) => {
         // Die Zeit wann der Eintrag der Cache hinzugefügt wurde, wird hinzugefügt
         if(await addressSessionAddedTime.get(publicKey) !== undefined) { await addressSessionAddedTime.get(publicKey).set(sessionId, processTimestamp); }
         else {
+            // Es wird ein neuer Eintrag hinzugefügt
             const newEntry = new Map();
             newEntry.set(sessionId, processTimestamp);
             addressSessionAddedTime.set(publicKey, newEntry);
+
+            // Es wird geprüft ob einen AddressRawEndPoint für diese Adresse gibt, wenn ja wird diesem Signalisiert dass eine Verbindung verfügbar ist
+            const addressRawEP = await openEndPoints.get(publicKey);
+            if(addressRawEP !== undefined) addressRawEP.events.routeForAddressAvailable(); 
         }
 
         // Die Operation ist abgeschlossen
@@ -506,6 +511,7 @@ const routingManager = (signWithNodeKey) => {
             obj:_OBJ_FUNCTIONS,
             events:{
                 allRoutesForAddressClosed:() => eventEmitter.emit('allRoutesForAddressClosed'),
+                routeForAddressAvailable:() => eventEmitter.emit('routeForAddressAvailable')
             } 
         });
 
