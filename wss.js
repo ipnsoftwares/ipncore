@@ -1,4 +1,4 @@
-const { getHashFromDict, createRandomSessionId, encrypt_data, compute_shared_secret } = require('./crypto');
+const { get_hash_from_Dict, create_random_session_id, encrypt_data, compute_shared_secret, sign_digest } = require('./crypto');
 const { dprintok, dprinterror, colors } = require('./debug');
 const { WebSocketServer, WebSocket } = require('ws');
 const consensus = require('./consensus');
@@ -10,7 +10,7 @@ const cbor = require('cbor');
 // Stellt eine Verbindung dar
 const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddress, incomming=false, sfunctions=[], clrqfunctions=[], callbackAfterConnected=null, connectionClosedCallback=null) => {
     // Speichert die Aktuelle SessionID dieser Verbindung ab
-    let _currentSessionId = createRandomSessionId();
+    let _currentSessionId = create_random_session_id();
 
     // Gibt die Startzeit der Verbindung an
     var _connectionStartTime = Date.now();
@@ -93,10 +93,14 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         // Das Basispaket wird gebaut
         const baseRAWPackage = { version:consensus.version, ...rawPackage };
 
-        // Es wird ein Hash aus dem Paket erzeugt
-        const packageHash = getHashFromDict(baseRAWPackage);
+        // Der Hash des Paketes wird Signiert
+        const packageSignature = sign_digest(get_hash_from_Dict(baseRAWPackage), socketKeyPair.privateKey);
 
-        // 
+        // Die Signatur wird dem Paket hinzugefügt
+        const finallyObjPackage = { ...baseRAWPackage, sig:packageSignature };
+
+        // Das Paket wird an die gegenseite übertragen
+        _SNED_SESSION_BASED_PACKAGES(finallyObjPackage, callback);
     };
 
     // Speichert alle Objekt funktionen ab
@@ -159,7 +163,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
         // Die Signatur wird geprüft
         delete clonedObj.sig, clonedObj.pkey;
-        if(localeNodeObject.crypto.ed25519.verify_sig(decodedSignature, getHashFromDict(clonedObj), decodedPublicKey)) return false;
+        if(localeNodeObject.crypto.ed25519.verify_sig(decodedSignature, get_hash_from_Dict(clonedObj), decodedPublicKey)) return false;
 
         // Es wird geprüft ob die Signatur korrekt ist
         return true;
@@ -214,7 +218,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         const helloPackage = { version:consensus.version, type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'] };
 
         // Der Hash des Dicts wird Signiert
-        const cryptoSig = localeNodeObject.signAndReturnPubKeyAndSig(getHashFromDict(helloPackage));
+        const cryptoSig = localeNodeObject.signAndReturnPubKeyAndSig(get_hash_from_Dict(helloPackage));
 
         // Das Finale Paket wird gebaut
         const finalHelloPackage = Object.assign(helloPackage, { pkey:Buffer.from(cryptoSig.pkey).toString('hex'), sig:Buffer.from(cryptoSig.sig).toString('hex') });
@@ -230,7 +234,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
     };
 
     // Wird verwendetet um REGISTER-NODE Pakete zu verarbeiteten
-    const _ENTER_REGISTER_NODE_PACKAGE = (package_data) => {
+    const _ENTER_PEER_HELLO_PACKAGE = (package_data) => {
         // Es wird geprüft ob das Peer bereits Initalisiert wurde
         if (_destinationPublicKey !== null || _connectionIsInited !== false) {
             dprinterror(10, ['An internal error has occurred, the connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['is closed for security reasons.']);
@@ -239,13 +243,13 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         }
 
         // Es wird geprüft ob die benötigten Datenfelder vorhanden sind
-        var _innerFieldsFound = true;
-        if(Object.keys(package_data).length >= 256) _innerFieldsFound = false;
-        if(package_data.hasOwnProperty('pkey') !== true) _innerFieldsFound = 'pkey';
-        if(package_data.hasOwnProperty('protf') !== true) _innerFieldsFound = 'protf';
-        if(package_data.hasOwnProperty('version') !== true) _innerFieldsFound = 'version';
-        if(package_data.hasOwnProperty('sfunctions') !== true) _innerFieldsFound = 'sfunctions';
-        if(_innerFieldsFound !== true) {
+        var _innerFieldsFound = [];
+        if(Object.keys(package_data).length >= 256) _innerFieldsFound.push('to_big_data');
+        if(package_data.hasOwnProperty('pkey') !== true) _innerFieldsFound.push('pkey');
+        if(package_data.hasOwnProperty('protf') !== true) _innerFieldsFound.push('portf');
+        if(package_data.hasOwnProperty('version') !== true) _innerFieldsFound.push('version');
+        if(package_data.hasOwnProperty('sfunctions') !== true) _innerFieldsFound.push('sfunctions');
+        if(_innerFieldsFound.length !== 0) {
             dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
             wsConnObject.close();
             return; 
@@ -254,12 +258,14 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         // Es wird geprüft ob es sich um eine Zulässige Version handelt
         if(package_data.version < consensus.sversion) {
             wsConnObject.close();
+            return;
         }
 
         // Es wird geprüft ob sich das Programm im Main Modus befindet, wenn ja werden alle Tesnet Keys blockiert
         if(consensus.is_mainnet === true) {
             if(consensus.main_blocked_public_keys.includes(package_data.pkey)) {
                 wsConnObject.close();
+                return;
             }
         }
 
@@ -267,7 +273,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         _peerVersion = package_data.version;
 
         // Der Öffentliche Schlüssel wird geschrieben
-        _destinationPublicKey = package_data.pkey;
+        _destinationPublicKey = Buffer.from(package_data.pkey).toString('hex');
 
         // Sofern vorhanden wird der Init Timer gestoppt
         if(_initTimer !== null) { clearTimeout(_initTimer); _initTimer = null; }
@@ -293,7 +299,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         }
 
         // Der DH-Schlüssel für die Sitzung wird erzeut
-        compute_shared_secret(Buffer.from(socketKeyPair.privateKey),  Buffer.from(package_data.pkey, 'hex'), (error, result) => {
+        compute_shared_secret(Buffer.from(socketKeyPair.privateKey),  Buffer.from(package_data.pkey), (error, result) => {
             // Der DH-Schlüssel wird abgespeichert
             _sessionSharedSecret = result;
 
@@ -347,7 +353,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         // Der Pakettyp wird ermittelt
         switch (jsonEncodedPackage.type) {
             case "regnde":
-                _ENTER_REGISTER_NODE_PACKAGE(jsonEncodedPackage);
+                _ENTER_PEER_HELLO_PACKAGE(jsonEncodedPackage);
                 break;
             default:
                 dprinterror(10, ['Invalid packet received in session'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['session will be closed for security reasons.']);
@@ -375,14 +381,14 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
             _errorRecivedPackageBytes += message.length;
             _errorRecivedPackages += 1;
             wsConnObject.close(); 
-        }
+        };
 
         // Es wird geprüft ob ein Pakettyp angegeben wurde
         if(jsonEncodedPackage.hasOwnProperty('type') !== true) {
             dprinterror(10, ['Invalid packet received in session'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['session will be closed for security reasons.']);
             wsConnObject.close();
             return;
-        }
+        };
 
         // Der Pakettyp wird ermittelt
         switch (jsonEncodedPackage.type) {
@@ -430,7 +436,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                 dprinterror(10, ['Invalid packet received in session'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['session will be closed for security reasons.']);
                 wsConnObject.close();
                 return; 
-        }
+        };
     };
 
     // Nimmt eintreffende Pakete entgegen

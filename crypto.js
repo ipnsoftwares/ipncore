@@ -17,15 +17,15 @@ const CRYPTO_ALGO = {
 };
 
 // Erstellt einen Hash aus einem Dict
-function getHashFromDict(jsonDict) {
+function get_hash_from_Dict(jsonDict) {
     const ordered = Object.keys(jsonDict).sort().reduce((obj, key) => { obj[key] = jsonDict[key]; return obj; },{});
-    const hashx = crypto.createHash('sha256').update(cbor.encode(ordered)).digest();
     const hash = new SHA3(384);
+    hash.update(cbor.encode(ordered));
     return hash.digest();
 };
 
 // Erstellt eine Zufällige SessionID ab
-function createRandomSessionId() {
+function create_random_session_id() {
     return binary_to_base58(crypto.randomBytes(14)).toUpperCase();
 };
 
@@ -92,6 +92,14 @@ function crypto_verify_sig(crypto_algo, message, sig, public_key) {
     }
 };
 
+function sign_digest(digest, priv_key_bytes) {
+    // Es wird geprüft ob Sodium Initalisiert wurde
+    if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
+
+    // Die Signatur wird erstellt
+    return Buffer.from(_crypto_sodium_modul.crypto_sign_detached(new Uint8Array(digest), new Uint8Array(priv_key_bytes)));
+};
+
 // Entschlüsselt einen Datensatz
 function decrypt_data(dataset, callback) {
 
@@ -128,10 +136,11 @@ function compute_shared_secret(privKey, pubKey, callback) {
 
 
 module.exports = {
-    initCrypto:init_crypto,
-    getHashFromDict:getHashFromDict,
-    createRandomSessionId:createRandomSessionId,
+    init_crypto:init_crypto,
+    get_hash_from_Dict:get_hash_from_Dict,
+    create_random_session_id:create_random_session_id,
     compute_shared_secret:compute_shared_secret,
+    sign_digest:sign_digest,
     decrypt_data:decrypt_data,
     encrypt_data:encrypt_data,
     eccdsa:{

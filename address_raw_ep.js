@@ -1,5 +1,5 @@
 const { dprinterror, dprintok, colors, dprintwarning, dprintinfo } = require('./debug');
-const { getHashFromDict } = require('./crypto');
+const { get_hash_from_Dict } = require('./crypto');
 const consensus = require('./consensus');
 const crypto = require('crypto');
 
@@ -99,7 +99,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     // Signiert ein PreBuilded Object und gibt ein Fertiges Objekt aus
     const _SIGN_PRE_PACKAGE = (prePackage) => {
         // Das Paket wird Signiert
-        const packageSig = _SIGN_DIGEST_WLSKEY(localNodePrivateKey, getHashFromDict(prePackage));
+        const packageSig = _SIGN_DIGEST_WLSKEY(localNodePrivateKey, get_hash_from_Dict(prePackage));
 
         // Das Finale Paket wird Signiert
         return Object.assign(prePackage, { pkey:Buffer.from(packageSig.pkey).toString('hex'), sig:Buffer.from(packageSig.sig).toString('hex') });
@@ -122,7 +122,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         };
 
         // Das Paket wird Signiert
-        const packageSig = _SIGN_DIGEST_WLSKEY(sourcePrivateKey, getHashFromDict(preLayer2Frame));
+        const packageSig = _SIGN_DIGEST_WLSKEY(sourcePrivateKey, get_hash_from_Dict(preLayer2Frame));
 
         // Das Finale Paket wird Signiert
         return { ...preLayer2Frame, ssig:Buffer.from(packageSig.sig).toString('hex') };
@@ -310,7 +310,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         const _CLOSE = () => {
             if(_openPingProcesses.delete(secRandHash) === true) {
                 if(_OPEN_WAIT_RESPONSE_TIMER !== null) { clearTimeout(_OPEN_WAIT_RESPONSE_TIMER); _OPEN_WAIT_RESPONSE_TIMER = null; }
-                dprintwarning(10, ['The ping process'], [colors.FgRed, getHashFromDict(finallyFrame).toString('base64')], ['was forced to end.']);
+                dprintwarning(10, ['The ping process'], [colors.FgRed, get_hash_from_Dict(finallyFrame).toString('base64')], ['was forced to end.']);
                 callback(false, null, Buffer.from(secRandHash, 'hex').toString('base64'));
             }
         };
@@ -319,7 +319,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         _openPingProcesses.set(secRandHash, { callResponse:_RESPONSE, close:_CLOSE });
 
         // Das Ping Paket wird versendet
-        dprintinfo(10, ['The ping packet'], [colors.FgRed, getHashFromDict(baseFrame).toString('base64')], ['is sent']);
+        dprintinfo(10, ['The ping packet'], [colors.FgRed, get_hash_from_Dict(baseFrame).toString('base64')], ['is sent']);
         _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, socketobj, (state, tttl, ptime, sendSessionId) => {
             // Es wird geprüft ob der Ping Vorgang erfolgreich durchgeführt wurde
             if(state !== true) {
@@ -339,7 +339,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
             _OPEN_WAIT_RESPONSE_TIMER = setTimeout(_TIMER_FUNCTION_PROC, tttl);
 
             // Log
-            dprintinfo(10, ['The ping packet'], [colors.FgRed, getHashFromDict(baseFrame).toString('base64')], ['sent in'], [colors.FgMagenta, ptime], ['ms, ttl ='], [colors.FgMagenta, tttl]);
+            dprintinfo(10, ['The ping packet'], [colors.FgRed, get_hash_from_Dict(baseFrame).toString('base64')], ['sent in'], [colors.FgMagenta, ptime], ['ms, ttl ='], [colors.FgMagenta, tttl]);
         });
     };
 
