@@ -17,7 +17,7 @@ const CRYPTO_ALGO = {
 };
 
 // Erstellt einen Hash aus einem Dict
-function get_hash_from_Dict(jsonDict) {
+function get_hash_from_dict(jsonDict) {
     const ordered = Object.keys(jsonDict).sort().reduce((obj, key) => { obj[key] = jsonDict[key]; return obj; },{});
     const hash = new SHA3(384);
     hash.update(cbor.encode(ordered));
@@ -33,8 +33,8 @@ function create_random_session_id() {
 function init_crypto(callback) {
     if(_crypto_sodium_modul === null) {
         _sodium.ready
-        .then((e) => {
-            _crypto_sodium_modul = e;
+        .then(() => {
+            _crypto_sodium_modul = _sodium;
             callback(true);
         });
     }
@@ -92,6 +92,7 @@ function crypto_verify_sig(crypto_algo, message, sig, public_key) {
     }
 };
 
+// Signiert einen Hashwert
 function sign_digest(digest, priv_key_bytes) {
     // Es wird geprüft ob Sodium Initalisiert wurde
     if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
@@ -100,14 +101,41 @@ function sign_digest(digest, priv_key_bytes) {
     return Buffer.from(_crypto_sodium_modul.crypto_sign_detached(new Uint8Array(digest), new Uint8Array(priv_key_bytes)));
 };
 
-// Entschlüsselt einen Datensatz
-function decrypt_data(dataset, callback) {
+// Überprüft die Signatur eines Hashwertes
+function verify_digest_sig(digest, sig, public_key) {
+    // Es wird geprüft ob Sodium Initalisiert wurde
+    if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
+    return _crypto_sodium_modul.crypto_sign_verify_detached(new Uint8Array(sig), new Uint8Array(digest), new Uint8Array(public_key));
+};
 
+// Entschlüsselt einen Datensatz
+function decrypt_data(sharedSeecret, chiperText, callback) {
+    // Es wird geprüft ob Sodium Initalisiert wurde
+    if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
+
+    // Es wird versucht das Paket mittels CBOR einzulesen
+    const readedPackage = cbor.decode(chiperText);
+
+    // Es wird versucht die Daten zu entschlüsseln
+    const decrypted = _crypto_sodium_modul.crypto_aead_xchacha20poly1305_ietf_decrypt_detached(null, readedPackage.c, readedPackage.m, null, readedPackage.n, sharedSeecret);
+    
+    // Die Daten werden zurückgegeben
+    callback(null, decrypted);
 };
 
 // Verschlüsselt einen Datensatz
-function encrypt_data(dataset, callback) {
+function encrypt_data(sharedSeecret, plainPackage, callback) {
+    // Es wird geprüft ob Sodium Initalisiert wurde
+    if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
 
+    // Die Zufällige Nocne wird erzeugt
+    const randNonce = _crypto_sodium_modul.randombytes_buf(24);
+
+    // Die Daten werden verschlüsselt
+    const chiperText = _crypto_sodium_modul.crypto_aead_xchacha20poly1305_ietf_encrypt_detached(plainPackage, null, null, randNonce, sharedSeecret);
+
+    // Die Daten werden zurückgegeben
+    callback(null, cbor.encode({ c:chiperText.ciphertext, m:chiperText.mac, n:randNonce }));
 };
 
 // Wird verwendet um eine Shared Secret zu ersstellen
@@ -137,9 +165,10 @@ function compute_shared_secret(privKey, pubKey, callback) {
 
 module.exports = {
     init_crypto:init_crypto,
-    get_hash_from_Dict:get_hash_from_Dict,
+    get_hash_from_dict:get_hash_from_dict,
     create_random_session_id:create_random_session_id,
     compute_shared_secret:compute_shared_secret,
+    verify_digest_sig:verify_digest_sig,
     sign_digest:sign_digest,
     decrypt_data:decrypt_data,
     encrypt_data:encrypt_data,

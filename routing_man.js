@@ -1,6 +1,6 @@
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { createLayerTwoPackage } = require('./lpckg');
-const { get_hash_from_Dict } = require('./crypto');
+const { get_hash_from_dict } = require('./crypto');
 const consensus = require('./consensus');
 const EventEmitter = require('events');
 const crypto = require('crypto');
@@ -366,10 +366,10 @@ const routingManager = (signWithNodeKey) => {
                 enterPackage:(package, calb) => {
                     // Das Paket wird versendet
                     const sendStartTime = Date.now();
-                    dprintok(10, ['Packet'], [colors.FgRed, get_hash_from_Dict(package).toString('base64')], ['is sent to'], [colors.FgYellow, publicKey], ['via session'], [colors.FgMagenta, obj.sessionId()]);
+                    dprintok(10, ['Packet'], [colors.FgRed, get_hash_from_dict(package).toString('base64')], ['is sent to'], [colors.FgYellow, publicKey], ['via session'], [colors.FgMagenta, obj.sessionId()]);
                     obj.enterPackage(package, (r) => {
                         const procTime = Date.now() - sendStartTime;
-                        dprintok(10, ['Packet'], [colors.FgRed, get_hash_from_Dict(package).toString('base64')], ['was sent'], [colors.FgYellow, publicKey], ['in ', colors.FgMagenta, procTime, ' ms'], ['via session'], [colors.FgMagenta, obj.sessionId()]);
+                        dprintok(10, ['Packet'], [colors.FgRed, get_hash_from_dict(package).toString('base64')], ['was sent'], [colors.FgYellow, publicKey], ['in ', colors.FgMagenta, procTime, ' ms'], ['via session'], [colors.FgMagenta, obj.sessionId()]);
                         calb(r, procTime);
                     });
                 }};
@@ -642,7 +642,7 @@ const routingManager = (signWithNodeKey) => {
 
             // Das Paket wird versendet
             firstConnection.enterPackage(signatedPackage, () => {
-                dprintinfo(10, ['Packet'], [colors.FgRed, get_hash_from_Dict(framePackage).toString('base64')], ['was successfully forwarded from'], [colors.FgMagenta, connObj.sessionId()], ['to'], [colors.FgMagenta, firstConnection.sessionId()], ['in'], [colors.FgYellow, Date.now() - cts, colors.Reset, ' ms.'])
+                dprintinfo(10, ['Packet'], [colors.FgRed, get_hash_from_dict(framePackage).toString('base64')], ['was successfully forwarded from'], [colors.FgMagenta, connObj.sessionId()], ['to'], [colors.FgMagenta, firstConnection.sessionId()], ['in'], [colors.FgYellow, Date.now() - cts, colors.Reset, ' ms.'])
             })
         };
 

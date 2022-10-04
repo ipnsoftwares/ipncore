@@ -1,7 +1,7 @@
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { createLocalSocket, SockTypes } = require('./socket');
 const { addressRawEndPoint } = require('./address_raw_ep');
-const { get_hash_from_Dict, eccdsa } = require('./crypto');
+const { get_hash_from_dict, eccdsa } = require('./crypto');
 const { verifyLayerThreePackage } = require('./lpckg');
 const { routingManager } = require('./routing_man');
 const { wsConnectTo, wsServer } = require('./wss');
@@ -58,7 +58,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     // Signiert ein PreBuilded Object und gibt ein Fertiges Objekt aus
     const _SIGN_PRE_PACKAGE = (prePackage) => {
         // Das Paket wird Signiert
-        const packageSig = _SIGN_DIGEST_WLSKEY(get_hash_from_Dict(prePackage));
+        const packageSig = _SIGN_DIGEST_WLSKEY(get_hash_from_dict(prePackage));
 
         // Das Finale Paket wird Signiert
         return Object.assign(prePackage, { pkey:Buffer.from(packageSig.pkey).toString('hex'), sig:Buffer.from(packageSig.sig).toString('hex') });
@@ -100,11 +100,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         openProcList.push({ type:"boot_node_client" });
         _openPeerServices.set(connObj.getPeerPublicKey(), openProcList);
 
-        // Das Finale Paket wird Signiert
-        const finalPackage = _SIGN_PRE_PACKAGE({ type:'req', 'cmd':'boot_node_client_start', crypto_algo:'ed25519' });
-
         // Der Gegenseite wird mitgeteilt das der BootNode vorgang gestartet werden soll
-        connObj.sendPackage(finalPackage, (result) => {
+        connObj.sendUnsigRawPackage({ type:'req', 'cmd':'boot_node_client_start' }, (result) => {
             if(!result) { connObj.close(); return; }
         });
     };
@@ -120,11 +117,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Das Aktuelle Item wird abgespeichert
             const rotem = { ep:otem, conf:_openOutEndPointConnectionTypes[otem] };
 
-            // Das Paket wird gebaut
-            const finalPackage = _SIGN_PRE_PACKAGE({ type:'resp', 'cmd':'boot_node_endpoint', data:rotem, crypto_algo:'ed25519' });
-
             // Der Gegenseite wird mitgeteilt das der BootNode vorgang gestartet werden soll
-            connObj.sendPackage(finalPackage, (result) => {
+            connObj.sendUnsigRawPackage({ type:'resp', 'cmd':'boot_node_endpoint', data:rotem }, (result) => {
                 if(!result) { connObj.close(); return; }
                 console.log('NODE_ENDPOINT_TRANSMITTED', connObj.getPeerPublicKey(), rotem.ep);
             });
@@ -229,17 +223,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             }
         }
 
-        // Wird verwendet um ein Signiertes Layer 2 Frame zu versenden
-        const _SEND_LAYER_FRAME = (frameObj, cbb) => {
-            // Es wird geprüft ob das Frame Sendbar ist
-
-            // Dem Cache wird Signalisiert dass ein Paket versendet wird
-
-        };
-
         // Die Basisfunktionen für das Routing werden erzeugt
         const routingFunctions = {
-            sendFramePacakge:_SEND_LAYER_FRAME,
+            sendRawPackage:connObj.sendUnsigRawPackage,
             enterPackage:connObj.sendPackage,
             isConnected:connObj.isConnected,
             pingTime:connObj.getPingTime,
@@ -414,7 +400,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
                 // Die Signatur wird geprüft
                 delete clonedObj.sig, clonedObj.pkey;
-                if(CRYPTO_FUNCTIONS.ed25519.verify_sig(decodedSignature, get_hash_from_Dict(clonedObj), decodedPublicKey)) return false;
+                if(CRYPTO_FUNCTIONS.ed25519.verify_sig(decodedSignature, get_hash_from_dict(clonedObj), decodedPublicKey)) return false;
 
                 // Es wird geprüft ob die Signatur korrekt ist
                 return true;
@@ -429,7 +415,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     // Signiert ein Frame
     const _SIGN_FRAME = (unsignedFrame) => {
         // Das Paket wird Signiert
-        const packageSig = _SIGN_DIGEST_WLSKEY(get_hash_from_Dict(unsignedFrame));
+        const packageSig = _SIGN_DIGEST_WLSKEY(get_hash_from_dict(unsignedFrame));
 
         // Das Finale Paket wird Signiert
         return Object.assign(unsignedFrame, { source:Buffer.from(packageSig.pkey).toString('hex'), ssig:Buffer.from(packageSig.sig).toString('hex') });
@@ -530,7 +516,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 connObj.sendPackage(signatedPackage, (r) => {
                     // Dem Routing Manager wird Siganlisiert dass das Paket erfolgreich übertragen wurden
                     _rManager.signalPackageTransferedToPKey(packageFrame.destination, packageFrame.source, connObj).then(() => {
-                        dprintinfo(10, ['Ping'], [colors.FgRed, get_hash_from_Dict(decryptedPackage).toString('base64')], ['returned successfully.']);
+                        dprintinfo(10, ['Ping'], [colors.FgRed, get_hash_from_dict(decryptedPackage).toString('base64')], ['returned successfully.']);
                         callback(r);
                     })
                 });
@@ -538,7 +524,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             else {
                 // Das Paket wird an den Routing Manager übergeben
                 _rManager.enterOutgoingLayer2Packages(packageFrame.source, signatedFrame, (r) => {
-                    dprintinfo(10, ['Ping'], [colors.FgRed, get_hash_from_Dict(decryptedPackage).toString('base64')], ['returned successfully.']);
+                    dprintinfo(10, ['Ping'], [colors.FgRed, get_hash_from_dict(decryptedPackage).toString('base64')], ['returned successfully.']);
                     callback(r);
                 }, 1);
             }
@@ -593,7 +579,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         }
 
         // Log
-        dprintok(10, ['Package'], [colors.FgRed, get_hash_from_Dict(package.frame).toString('base64')], ['recived over'], [colors.FgMagenta, connObj.sessionId()], ['from ', colors.FgYellow, package.frame.source]);
+        dprintok(10, ['Package'], [colors.FgRed, get_hash_from_dict(package.frame).toString('base64')], ['recived over'], [colors.FgMagenta, connObj.sessionId()], ['from ', colors.FgYellow, package.frame.source]);
 
         // Es wird geprüft ob es sich bei dem Empfänger um eine Lokale Adresse handelt, wenn nicht wird das Paket an den Routing Manager übergeben
         if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === package.frame.destination) {
@@ -696,13 +682,13 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                     if(tempResolvObj === undefined) { console.log('PACKAGE_FOR_UNKOWN_PROCESS_DROPED'); return; }
 
                     // Es wird geprüft ob dieses Paket bereits empfangen wurde
-                    if(tempResolvObj.recivedPackageHashes.includes(get_hash_from_Dict(orpackage)) === true) {
+                    if(tempResolvObj.recivedPackageHashes.includes(get_hash_from_dict(orpackage)) === true) {
                         console.log('PACKAGE_DROPED_ALWAYS_RECIVED_THIS_PACKAGE');
                         return;
                     }
 
                     // Der Pakethash wird dem Vorgang hinzugefügt
-                    tempResolvObj.recivedPackageHashes.push(get_hash_from_Dict(orpackage));
+                    tempResolvObj.recivedPackageHashes.push(get_hash_from_dict(orpackage));
 
                     // Es wird geprüft ob von diesem Peer bereits ein Paket Empfangen wurde
                     let totalPeersRecived = 0;
@@ -766,7 +752,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                     aborted:false,
                     retrvPackage:_AFTER_RECIVCE_RESPONSE,
                     peers:[ { send:false, recive:true, ep:connObj } ],
-                    recivedPackageHashes:[get_hash_from_Dict(package)]
+                    recivedPackageHashes:[get_hash_from_dict(package)]
                 });
 
                 // Der Time wird gestartet
