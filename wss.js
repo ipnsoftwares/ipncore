@@ -122,6 +122,23 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         _SNED_SESSION_BASED_PACKAGES(finallyObjPackage, callback);
     };
 
+    // Wird verwendet um zu Signalisieren das X Bytes empfangen wurden
+    const _ADD_PACKAGE_RECIVED = (packageData) => {
+        _recivedPackageBytes += packageData.length;
+        _recivedPackages += 1;
+    };
+
+    // Wird verwendet um zu Signaliseren das X Bytes fehlerhaft empfangen wurden
+    const _ADD_PACKAGE_RECIVED_INVALID = (packageData) => {
+
+    };
+
+    // Wird verwendet um zu Signaliseren das X Bytes versendet wurden
+    const _ADD_PACKAGE_SEND = (packageData) => {
+        _sendPackagesBytes += packageData.length;
+        _sendPackages += 1;
+    };
+
     // Speichert alle Objekt funktionen ab
     const _WS_SOCKET_FUNCTIONS = {
         sendPackage:(package, callback) => _SNED_SESSION_BASED_PACKAGES(package, callback),
@@ -153,42 +170,6 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         },
     };
 
-    // Prüft ob die Signatur eines Paketes korrekt ist
-    const _VERIFY_PACKAGE_SIGNATURE = (pacakge) => {
-        // Es wird geprüft ob der Öffentliche Schlüssel, die Signatur sowie der Algo vorhanden sind
-        if(pacakge.hasOwnProperty('pkey') !== true) return false;
-        if(pacakge.hasOwnProperty('sig') !== true) return false;
-
-        // Sollte bereits ein Sitzungsschlüssel vorhanden sein, so werden diese Verglichen, sollten die Schlüssel nicht Identisch sein, wird der Vorgang abgebrochen
-        if(_destinationPublicKey !== null) {
-            if(_destinationPublicKey !== pacakge.pkey) {
-                dprinterror(10, ['It is a corrupt connection, connection'], [colors.FgMagenta, _currentSessionId], ['was closed for security reasons']);
-                wsConnObject.close();
-                return;
-            }
-        }
-
-        // Das Paketobjekt wird geklont
-        let clonedObj = JSON.parse(JSON.stringify(pacakge));
-
-        // Es wird geprüft ob die Länge des Öffentlichen Schlüssels korrekt ist
-        if(pacakge.pkey.length !== 64) return false;
-
-        // Es wird geprüft ob die Länge der Signatur korrekt ist
-        if(pacakge.sig.length !== 128) return false;
-
-        // Es wird versucht den Öffentlichen Schlüssel sowie die Signatur zu Dekodieren
-        try{ var decodedPublicKey = Buffer.from(pacakge.pkey, 'hex'), decodedSignature = Buffer.from(pacakge.sig, 'hex'); }
-        catch(e) { dprinterror(10, e); return false; }
-
-        // Die Signatur wird geprüft
-        delete clonedObj.sig, clonedObj.pkey;
-        if(localeNodeObject.crypto.ed25519.verify_sig(decodedSignature, get_hash_from_dict(clonedObj), decodedPublicKey)) return false;
-
-        // Es wird geprüft ob die Signatur korrekt ist
-        return true;
-    };
-
     // Wird aller 5 Sekunden ausgeführt und führt einen Ping innerhalb der Aktuellen Verbindung durch
     const _PING_PONG_TIMER = () => {
         // Es wird ein Zufälliger Wert erzeugt
@@ -200,11 +181,20 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
     // Wird ausgeführt, nachdem die Verbindung erfolgreich hergestellt wurde
     const _CALL_AFTER_SUCCS_CONNECTED = () => {
+        // Es wird geprüft ob der Remoteschlüssel angegeben wurde
+        if(_destinationPublicKey === null) { wsConnObject.close(); return; }
+
+        // Es wird geprüft ob der DH-Schlüssel vorhanden ist
+        if(_sessionSharedSecret === null) { wsConnObject.close(); return; }
+
         // Alle Verfügbaren Funktionen beider Nodes werden ermittelt
         var supportedFunctions = [];
         for(const x of clrqfunctions) {
             for(const t of _peerFunctions) { if (x === t) supportedFunctions.push(x); } 
         }
+
+        // Es wird geprüft ob die Verbindung mit dem Peer hergestellt ist
+        if(_isConnected !== true) { wsConnObject.close(); return; }
 
         // Die Zeit wann die Initalisierung fertigestellt wurde wird gesetzt
         _connectionInitalFinalTime = Date.now();
@@ -214,12 +204,16 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
         // Die Verbindung wird registriert
         localeNodeObject.registerConnection(_WS_SOCKET_FUNCTIONS, _peerProtFunctions, (result) => {
+            // Es wird geprüft ob der Vorgang erfolgreich durchgeführt werden konnte
             if(result !== true) {
                 dprinterror(10, ['An internal error has occurred, the connection'], [colors.FgMagenta, _currentSessionId], ['is closed for security reasons.'])
                 _connectionIsInited = false;
                 wsConnObject.close();
                 return; 
             }
+
+            // Es wird geprüft ob eiene Verbindung aufrgabut ist
+            
 
             // Es wird Signalisiert dass eine Verbindung aufgebaut wurde
             if(!incomming) { if(callbackAfterConnected !== null) callbackAfterConnected(); }
@@ -237,15 +231,37 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         // Das HelloPackage wird gebaut
         const helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey) };
 
+        // Es wird geprüft ob die Verbindung mit der Gegenseite noch besteht
+        if(_isConnected !== true) {
+            console.log('ABORTED_CONNECTION_CLOSED');
+            return;
+        }
+
         // Das Paket wird gesendet
         _SEND_UNSIGNATED_RAW_PACKAGE(helloPackage, (state) => callback(state));
     };
 
     // Wird verwendetet um REGISTER-NODE Pakete zu verarbeiteten
     const _ENTER_PEER_HELLO_PACKAGE = (package_data) => {
+        // Es wird geprüft ob ein Paket angegeben wurde
+        if(package_data === undefined || package_data === null) {
+            dprinterror(10, ['An error occurred in session'], [colors.FgMagenta, _currentSessionId], [E]);
+            wsConnObject.close();
+            return;
+        }
+
+        // Es wird geprüft ob es sich um ein Hello Package handelt
+        if(isValidateHelloPackageLayerOne(package_data) !== true) {
+            dprinterror(10, ['An internal error has occurred, the connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['is closed for security reasons.']);
+            _ADD_PACKAGE_RECIVED_INVALID(package_data);
+            wsConnObject.close();
+            return; 
+        }
+
         // Es wird geprüft ob das Peer bereits Initalisiert wurde
         if(_destinationPublicKey !== null || _connectionIsInited !== false) {
             dprinterror(10, ['An internal error has occurred, the connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['is closed for security reasons.']);
+            _ADD_PACKAGE_RECIVED_INVALID(package_data);
             wsConnObject.close();
             return; 
         }
@@ -254,12 +270,15 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         const pacakgeValidationState = isValidateHelloPackageLayerOne(package_data);
         if(pacakgeValidationState !== true) {
             dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
+            _ADD_PACKAGE_RECIVED_INVALID(package_data);
             wsConnObject.close();
             return;
         }
 
         // Es wird geprüft ob es sich um eine Zulässige Version handelt
         if(package_data.version < consensus.sversion) {
+            dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
+            _ADD_PACKAGE_RECIVED_INVALID(package_data);
             wsConnObject.close();
             return;
         }
@@ -267,6 +286,8 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         // Es wird geprüft ob sich das Programm im Main Modus befindet, wenn ja werden alle Tesnet Keys blockiert
         if(consensus.is_mainnet === true) {
             if(consensus.main_blocked_public_keys.includes(package_data.pkey)) {
+                dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
+                _ADD_PACKAGE_RECIVED_INVALID(package_data);
                 wsConnObject.close();
                 return;
             }
@@ -276,7 +297,15 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         let clonedPackageObj = { ...package_data };
         delete clonedPackageObj.sig;
         if(verify_digest_sig(get_hash_from_dict(clonedPackageObj), package_data.sig, package_data.pkey) !== true) {
+            dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
+            _ADD_PACKAGE_RECIVED_INVALID(package_data);
             wsConnObject.close();
+            return;
+        }
+
+        // Es wird geprüft ob die Verbindung mit dem Peer noch besteht, wenn nicht wird der Vorgang abgebrochen
+        if(_isConnected !== true) {
+            console.log('ABORTED_CONNECTION_CLOSED');
             return;
         }
 
@@ -293,6 +322,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         for(let i = 0; i<package_data.sfunctions.length; i++) {
             if (typeof package_data.sfunctions[i] !== 'string') {
                 dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
+                _ADD_PACKAGE_RECIVED_INVALID(package_data);
                 wsConnObject.close();
                 return;
             }
@@ -303,6 +333,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         for(let i = 0; i<package_data.protf.length; i++) {
             if (typeof package_data.protf[i] !== 'string') {
                 dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
+                _ADD_PACKAGE_RECIVED_INVALID(package_data);
                 wsConnObject.close();
                 return;
             }
@@ -311,12 +342,41 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
         // Der DH-Schlüssel für die Sitzung wird erzeut
         compute_shared_secret(Buffer.from(socketKeyPair.privateKey),  Buffer.from(package_data.pkey), (error, result) => {
+            // Es wird geprüft ob ein fehler aufgetreten ist
+            if(error !== null) {
+                dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
+                _ADD_PACKAGE_RECIVED_INVALID(package_data);
+                wsConnObject.close();
+                return;
+            }
+
+            // Es wird geprüft ob die Verbindung mit der Gegenseite besteht
+            if(_isConnected !== true) {
+                console.log('ABORTED_CONNECTION_CLOSED');
+                return;
+            }
+
             // Der DH-Schlüssel wird abgespeichert
             _sessionSharedSecret = result;
 
             // Das HelloPackage wird an die gegenseite gesendet, sofern es sich um eine Ausgehdene Verbindung handelt
-            if(!incomming) _SEND_HELLO_PACKAGE_TO_PEER(() => _CALL_AFTER_SUCCS_CONNECTED());
-            else _CALL_AFTER_SUCCS_CONNECTED();
+            if(!incomming) {
+                // Der Gegenseite wird das HalloPackage zugesendet
+                _SEND_HELLO_PACKAGE_TO_PEER((state) => {
+                    // Es wird geprüft ob der Vorgang erfolgreich druchgeführt werden konnte
+                    if(state !== true) {
+                        console.log('ABORTED_CONNECTION_CLOSED');
+                        return;
+                    }
+
+                    // Die Verbindung wird fertigestellt
+                    _CALL_AFTER_SUCCS_CONNECTED();
+                });
+            }
+            else {
+                // Die Verbindung wird fertigestellt
+                _CALL_AFTER_SUCCS_CONNECTED();
+            }
         });
     };
 
@@ -346,37 +406,39 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
     // Nimt Pakete bei einer nicht Initalisierten Verbindung entgegen
     const _ENTER_PACKAGE_ON_NOT_INITED_CONNECTION = (message) => {
-        // Das Eintreffende Paket wird geparst
-        try {
-            var jsonEncodedPackage = cbor.decode(message)
-            _recivedPackageBytes += message.length;
-            _recivedPackages += 1;
+        // Es wird geprüft ob ein Paket angegeben wurde
+        if(message === undefined || message === null) {
+            dprinterror(10, ['An error occurred in session'], [colors.FgMagenta, _currentSessionId], [E]);
+            wsConnObject.close();
+            return;
         }
+
+        // Es wird geprüft ob es sich um einen Buffer handelt
+        if(Buffer.isBuffer(message) !== true) {
+            dprinterror(10, ['An error occurred in session'], [colors.FgMagenta, _currentSessionId], [E]);
+            wsConnObject.close();
+            return;
+        }
+
+        // Das Eintreffende Paket wird versucht einzulesen
+        try{ var encodedObject = cbor.decode(message); }
         catch(E) {
             dprinterror(10, ['An error occurred in session'], [colors.FgMagenta, _currentSessionId], [E]);
-            _errorRecivedPackageBytes += message.length;
-            _errorRecivedPackages += 1;
+            _ADD_PACKAGE_RECIVED_INVALID(message);
             wsConnObject.close();
             return;
         }
 
-        // Es wird geprüft ob ein Pakettyp angegeben wurde
-        if(jsonEncodedPackage.hasOwnProperty('type') !== true) {
-            dprinterror(10, ['Invalid packet received in session'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['session will be closed for security reasons.']);
+        // Es wird geprüft ob es sich um ein HelloPackage handelt
+        if(isValidateHelloPackageLayerOne(encodedObject) !== true) {
+            dprinterror(10, ['An error occurred in session'], [colors.FgMagenta, _currentSessionId], [E]);
+            _ADD_PACKAGE_RECIVED_INVALID(message);
             wsConnObject.close();
             return;
         }
 
-        // Der Pakettyp wird ermittelt
-        switch (jsonEncodedPackage.type) {
-            case "regnde":
-                _ENTER_PEER_HELLO_PACKAGE(jsonEncodedPackage);
-                break;
-            default:
-                dprinterror(10, ['Invalid packet received in session'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['session will be closed for security reasons.']);
-                wsConnObject.close();
-                return; 
-        }
+        // Das HelloPackage wird weiterverarbeitet
+        _ENTER_PEER_HELLO_PACKAGE(encodedObject);
     };
 
     // Nimt Pakete bei einer Initalisierten Verbindung entgegen
@@ -384,20 +446,15 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         // Das Paket wird entschlüsselt
         decrypt_data(_sessionSharedSecret, plainMessage, (error, decryptedResult) => {
             // Das Eintreffende Paket wird geparst
-            try {
-                var jsonEncodedPackage = cbor.decode(decryptedResult)
-                _recivedPackageBytes += plainMessage.length;
-                _recivedPackages += 1;
-            }
+            try { var jsonEncodedPackage = cbor.decode(decryptedResult); }
             catch(E) {
                 dprinterror(10, ['An error occurred in session'], [colors.FgMagenta, _currentSessionId], [E]);
-                _errorRecivedPackageBytes += plainMessage.length;
-                _errorRecivedPackages += 1;
+                _ADD_PACKAGE_RECIVED_INVALID(plainMessage);
                 wsConnObject.close();
                 return;
             }
 
-            // Es wird geprüft ob der Öffentliche Schlüssel sowie die Signatur vorhanden ist
+            // Das Basis Layer 1 Paket wird geprüft
 
             // Es wird geprüft ob die Signatur des Paketes korrekt ist
 
@@ -460,11 +517,45 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
     // Nimmt eintreffende Pakete entgegen
     wsConnObject.on('message', (message) => {
+        // Es wird geprüft ob ein Datensatz verfügbar ist
+        if(message === undefined || message === null) {
+            console.log('INVALID_DATA_RECIVED::CONNECTION_CLOSED');
+            wsConnObject.close();
+            return;
+        }
+
+        // Es wird geprüft ob es sich um ein Buffer handelt
+        if(Buffer.isBuffer(message) !== true) {
+            console.log('INVALID_DATA_RECIVED::INVALID_DATA_TYPE');
+            _ADD_PACKAGE_RECIVED_INVALID(message);
+            wsConnObject.close();
+            return;
+        }
+
+        // Es wird Signalisiert das ein Paket empfangen wurde
+        _ADD_PACKAGE_RECIVED(message);
+
+        // Es wird geprüft ob mindestens 64 Bytes empfangen wurden
+        if(message.length < 64) {
+            console.log('INVALID_DATA_RECIVED_TO_SMALL');
+            _ADD_PACKAGE_RECIVED_INVALID(message);
+            wsConnObject.close();
+            return;
+        }
+
+        // Es wird geprüft ob das Paket eine Maximalgröße überschritten wurde
+        if(message.length > consensus.maximal_package_size) {
+            console.log('PACKAGE_SIZE_TO_BIG_DROPED');
+            _ADD_PACKAGE_RECIVED_INVALID(message);
+            wsConnObject.close();
+            return;
+        }
+
         // Debug Print
         dprintok(10, ['Data packet with'], [colors.FgMagenta, message.length], ['bytes received via the websocket connection'], [colors.FgMagenta, _currentSessionId]);
 
         // Es wird geprüft ob die Verbindung bereits Initaliseirt wurde
-        if(_connectionIsInited) _ENTER_PACKAGE_ON_INITED_CONNECTION(message);
+        if(_connectionIsInited === true) _ENTER_PACKAGE_ON_INITED_CONNECTION(message);
         else _ENTER_PACKAGE_ON_NOT_INITED_CONNECTION(message);
     });
 

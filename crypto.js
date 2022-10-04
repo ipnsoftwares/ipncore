@@ -162,11 +162,17 @@ function compute_shared_secret(privKey, pubKey, callback) {
     callback(null, Buffer.from(computedDhSecrtKey));
 };
 
+// Wird verwendet um ein neues Schlüsselpaar zu erstellen
+function generate_ed25519_keypair() {
+    return _crypto_sodium_modul.crypto_sign_keypair();
+};
+
 
 module.exports = {
     init_crypto:init_crypto,
     get_hash_from_dict:get_hash_from_dict,
     create_random_session_id:create_random_session_id,
+    generate_ed25519_keypair:generate_ed25519_keypair,
     compute_shared_secret:compute_shared_secret,
     verify_digest_sig:verify_digest_sig,
     sign_digest:sign_digest,

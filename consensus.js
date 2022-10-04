@@ -19,7 +19,7 @@ const i2p_based_transport_session_default_ttl = 120000;
 const ip_based_transport_session_default_ttl = 10000;
 
 // Speichert die Größe des Routing Ping Paketes ab
-const routingPingPackage = 96;
+const routing_ping_package = 96;
 
 // Gibt an, wieivele Routen zurückgeggeben werden sollen, wenn die Schnellste Routen ermittelt werden
 const routeing_max_peers = 2;
@@ -41,6 +41,9 @@ const unix_socket_root_path = `${os.tmpdir()}/${current_network.toLowerCase()}/`
 
 // Speichert die GitHub Url für die Bootnoding Listen ab
 const github_bootnode_list_url = 'https://raw.githubusercontent.com/fluffelpuff/ipn-github-bootnoding/main/';
+
+// Speichert die Maximale größe für ein Paket ab
+const maximal_package_size = 262553;
 
 // Speichert ab, ob es sich um eine Testversion handelt
 const is_mainnet = false;
@@ -92,7 +95,8 @@ module.exports = {
     github_bootnode_list_url:github_bootnode_list_url,
     ttl_for_routing_request:ttl_for_routing_request,
     max_package_byte_size:max_package_byte_size,
-    routingPingPackage:routingPingPackage,
+    maximal_package_size:maximal_package_size,
+    routing_ping_package:routing_ping_package,
     routeing_max_peers:routeing_max_peers,
     re_routing_time:re_routing_time,
     active_inips:active_inips,

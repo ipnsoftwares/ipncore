@@ -362,7 +362,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
 
         // Das Paket wird an die einzelenen Nodes gesendet
         for(const routeItem of froutes) {
-            _START_PING_PROCESS(consensus.routingPingPackage, routeItem, true, (state, pTime, procHash) => {
+            _START_PING_PROCESS(consensus.routing_ping_package, routeItem, true, (state, pTime, procHash) => {
                 // Es wird ein Vorgang raufgezählt
                 currentPackage += 1;
 

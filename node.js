@@ -1,7 +1,7 @@
+const { get_hash_from_dict, generate_ed25519_keypair } = require('./crypto');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { createLocalSocket, SockTypes } = require('./socket');
 const { addressRawEndPoint } = require('./address_raw_ep');
-const { get_hash_from_dict, eccdsa } = require('./crypto');
 const { verifyLayerThreePackage } = require('./lpckg');
 const { routingManager } = require('./routing_man');
 const { wsConnectTo, wsServer } = require('./wss');
@@ -507,13 +507,10 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Es wird geprüft ob es sich um ein Striktes Paket handelt, wenn ja wird es über die Verbindung zurückgesendet, über die es Empfangen wurde
             if(strictMode === true) {
                 // Das Layer 1 Paket wird gebaut
-                const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:signatedFrame };
-
-                // Das Paket wird Signiert
-                const signatedPackage = _SIGN_PRE_PACKAGE(prePackage);
+                const prePackage = { crypto_algo:'ed25519', type:'pstr',frame:signatedFrame };
 
                 // Das Paket wird direkt zurück an den Absender gesendet
-                connObj.sendPackage(signatedPackage, (r) => {
+                connObj.sendUnsigRawPackage(prePackage, (r) => {
                     // Dem Routing Manager wird Siganlisiert dass das Paket erfolgreich übertragen wurden
                     _rManager.signalPackageTransferedToPKey(packageFrame.destination, packageFrame.source, connObj).then(() => {
                         dprintinfo(10, ['Ping'], [colors.FgRed, get_hash_from_dict(decryptedPackage).toString('base64')], ['returned successfully.']);
@@ -618,7 +615,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         const signatedPackage = _SIGN_PRE_PACKAGE(finalPackage);
 
         // Das Paket wird an die gegenseite gesendet
-        connObj.sendPackage(signatedPackage, () => { callback(true); });
+        connObj.sendUnsigRawPackage(signatedPackage, () => {
+            callback(true); 
+        });
     };
 
     // Nimmt eintreffende Routing Request Pakete entgegen
@@ -866,11 +865,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                         // Es wird ein OpenRouteSessionPackage gebaut
                         const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:consensus.version, orn:rpackage.orn, addr:rpackage.addr, addrsig:rpackage.addrsig, timeout:newPackageTTL };
 
-                        // Das Paket wird Signiert
-                        const signatedPackage = _SIGN_PRE_PACKAGE(openRouteSessionPackage);
-
                         // Das Paket wird abgesendet
-                        firstExtractedPeer.ep.sendPackage(signatedPackage, (r) => {
+                        firstExtractedPeer.ep.sendUnsigRawPackage(openRouteSessionPackage, (r) => {
                             dprintok(10, ['The routing response packet for event'], [colors.FgCyan, basedReqProcId], ['was sent to session'], [colors.FgMagenta, connObj.sessionId(), colors.Reset, '.']);
                         });
                     };
@@ -956,9 +952,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         }
         else if(package.type === 'rrr') {
             // Es wird geprüft ob die benötigten Datenfelder vorhanden sind
-            if(!package.hasOwnProperty('addrsig')) { connObj.close(); console.log('AT2TZX', package); return; }
-            if(!package.hasOwnProperty('addr')) { connObj.close(); console.log('AT2TZX', package); return; }
-            if(!package.hasOwnProperty('orn')) { connObj.close(); console.log('AT2TZX', package); return; }
+            if(!package.hasOwnProperty('addrsig')) { connObj.close(); console.log('AT2TZX1'); return; }
+            if(!package.hasOwnProperty('addr')) { connObj.close(); console.log('AT2TZX2',); return; }
+            if(!package.hasOwnProperty('orn')) { connObj.close(); console.log('AT2TZX3'); return; }
 
             // Es wird geprüft ob die Länge des Addresses Hashes sowie des Einaml Schlüssels korrekt sind
             if(package.addrsig.length !== 128) { connObj.close(); console.log('AT5TZ'); return; }
@@ -1063,11 +1059,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Es wird ein OpenRouteSessionPackage gebaut, Consensus(ARTEMIS, INIP001, CLEAR-REQUEST)
             const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rreq', version:consensus.version, orn:randSessionId, addrh:addressHash, timeout:newPackageTTL };
 
-            // Das Paket wird Signiert
-            const signatedPackage = _SIGN_PRE_PACKAGE(openRouteSessionPackage);
-
             // Das Paket wird an diesen Peer gesendet
-            firstExtractedPeer.sendPackage(signatedPackage, () => {
+            firstExtractedPeer.sendUnsigRawPackage(openRouteSessionPackage, () => {
                 if(istFirstPackageWasSend === true) {
                     firstPackageSendCallback(true, firstExtractedPeer);
                     istFirstPackageWasSend = false;
@@ -1181,7 +1174,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             const doubleHash = crypto.createHash('sha256').update(firstHash).digest('hex');
 
             // Es wird eine Zufällige ID für das Paket erzuegt
+            const randKeyPair = generate_ed25519_keypair();
             const randSessionId = crypto.randomBytes(32).toString('hex');
+            console.log(Buffer.concat([  randKeyPair.publicKey ]));
 
             // Die VorgangsID wird erzeugt (Die VorgangsID besteht aus einem SHA256 Hash, welcher sich aus der RandomID sowie dem Addresshahs zusammensetzt)
             const finalProcId = crypto.createHash('sha256').update(randSessionId).update(doubleHash).digest('hex');
