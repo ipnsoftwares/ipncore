@@ -79,8 +79,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
                 // Das Paket wurde erfolgreich versendet
                 dprintok(10, ['Packet with'], [colors.FgMagenta, convertedCborPackage.length], ['bytes is transmitted via websocket connection'], [colors.FgMagenta, _currentSessionId]);
-                _sendPackagesBytes += convertedCborPackage.length;
-                _sendPackages += 1;
+                _ADD_PACKAGE_SEND(convertedCborPackage);
                 callback(true);
             }
             else {
@@ -213,13 +212,13 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
             }
 
             // Es wird geprüft ob eiene Verbindung aufrgabut ist
-            
-
-            // Es wird Signalisiert dass eine Verbindung aufgebaut wurde
-            if(!incomming) { if(callbackAfterConnected !== null) callbackAfterConnected(); }
+            if(_isConnected !== true) { wsConnObject.close(); return; }
 
             // Die Dienste der Verbindung werden gestartet
             if(!incomming) localeNodeObject.startClientServices(_WS_SOCKET_FUNCTIONS, supportedFunctions);
+
+            // Es wird Signalisiert dass eine Verbindung aufgebaut wurde
+            if(!incomming) { if(callbackAfterConnected !== null) callbackAfterConnected(); }
 
             // Wird als Timer ausgeführt
             if(_pingPongTimer === null) { _pingPongTimer = setTimeout(_PING_PONG_TIMER, 1000); }
@@ -616,7 +615,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
     // Gibt die Kernfunktionen zurück
     return { isInited:() => _connectionIsInited, close:() => _CLOSE_CONNECTION }
-}
+};
 
 // Baut eine ausgehende Verbindung auf
 const wsConnectTo = (socketKeyPair, localeNodeObject, serverUrl, sfunctions=[], accepted_functions=['boot_node'], callback=null, connectionClosedCallback=null) => {
@@ -637,7 +636,7 @@ const wsConnectTo = (socketKeyPair, localeNodeObject, serverUrl, sfunctions=[], 
         if(_initedObject !== null) { _initedObject.close(); }
         else { if(connectionClosedCallback !== null) { connectionClosedCallback(); } }
     });
-}
+};
 
 // Erstellt einen neuen Lokalen Server
 const wsServer = (socketKeyPair, localeNodeObject, localPort, sfunctions=[]) => {
@@ -669,8 +668,12 @@ const wsServer = (socketKeyPair, localeNodeObject, localPort, sfunctions=[]) => 
 
         },
     };
-}
+};
 
 
 // Exportiert alle Funktionen
-module.exports = { wsConnection:wsConnection, wsConnectTo:wsConnectTo, wsServer:wsServer }
+module.exports = {
+    wsConnection:wsConnection,
+    wsConnectTo:wsConnectTo,
+    wsServer:wsServer 
+};

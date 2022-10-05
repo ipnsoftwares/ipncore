@@ -181,6 +181,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
     // Wird verwendet um einen neue Verbindung zu Registrieren
     const _REGISTER_NEW_CONNECTION = (connObj, pprotFnc, callback) => {
+        // Es wird geprüft ob es sich um ein Objekt handelt
+        
+
         // Es wird geprüft ob es bereits eine Verbindung mit dem Peer gibt
         if(_peerPubKeys.includes(connObj.getPeerPublicKey())) { callback(false); return; }
 
