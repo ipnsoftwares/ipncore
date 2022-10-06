@@ -16,7 +16,7 @@ const ADR_EP_STATES = {
 };
 
 // Stellt einen Address to Adress RAW EndPoint dar
-const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, sourcePrivateKey, destinationPublicKey, crypto_functions, socketConfig, rcb, outRouteEp=true) => {
+const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, destinationPublicKey, crypto_functions, socketConfig, rcb, outRouteEp=true) => {
     // Es wird geprüft ob eine Route verfügbar ist
     if(!(await routeEP.isUseable())) { return 'unkown_route_for_address'; }
 
@@ -96,15 +96,6 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         return { sig:sig, pkey:pk.publicKey }
     };
 
-    // Signiert ein PreBuilded Object und gibt ein Fertiges Objekt aus
-    const _SIGN_PRE_PACKAGE = (prePackage) => {
-        // Das Paket wird Signiert
-        const packageSig = _SIGN_DIGEST_WLSKEY(localNodePrivateKey, get_hash_from_dict(prePackage));
-
-        // Das Finale Paket wird Signiert
-        return Object.assign(prePackage, { pkey:Buffer.from(packageSig.pkey).toString('hex'), sig:Buffer.from(packageSig.sig).toString('hex') });
-    };
-
     // Signiert ein Frame und fügt den Empfänger sowie den Absender hinzu
     const _COMPLETE_UNSIGNATED_FRAME = (encryptedFrameData, clearFrameData={}) => {
         // Es wird ein Zufällige Nonce erstellt
@@ -133,9 +124,6 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         // Das Layer 1 Paket wird gebaut
         const prePackage = { type:'pstr', frame:sigantedFrame };
 
-        // Das Paket wird Signiert
-        const signatedPackage = _SIGN_PRE_PACKAGE(prePackage);
-
         // Es wird ein neuer Sendevorgang erzeugt
         const sendProcess = crypto.randomBytes(24).toString('hex');
 
@@ -145,7 +133,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
         // Versendet das eigentliche Paket
         const _SEND_PACKAGE = (sockoob) => {
             // Das Paket wird an den Übergebenen Socket gesendet
-            sockoob.enterPackage(signatedPackage, (r, porcTime) => {
+            sockoob.sendRawPackage(prePackage, (r, porcTime) => {
                 // Es wird geprüft ob der Vorgang erfolreich war
                 if(r !== true) {
                     // Der Offene Vorgang wird entfernt

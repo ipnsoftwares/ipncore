@@ -1201,7 +1201,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Es wird eine Zufällige ID für das Paket erzuegt
             const randKeyPair = generate_ed25519_keypair();
             const randSessionId = crypto.randomBytes(32).toString('hex');
-            console.log(Buffer.concat([  randKeyPair.publicKey ]));
 
             // Die VorgangsID wird erzeugt (Die VorgangsID besteht aus einem SHA256 Hash, welcher sich aus der RandomID sowie dem Addresshahs zusammensetzt)
             const finalProcId = crypto.createHash('sha256').update(randSessionId).update(doubleHash).digest('hex');
@@ -1415,7 +1414,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             }
 
             // Das AddressRawEndPoint Objekt wird erstellt
-            const ipeResult = await addressRawEndPoint(_RAW_FUNCTIONS, routeEP, localPrivateKeyPair, localPrivateKeyPair, destPublicKey, CRYPTO_FUNCTIONS, addressRawEpConfig, (error, arep) => {
+            const ipeResult = await addressRawEndPoint(_RAW_FUNCTIONS, routeEP, localPrivateKeyPair, destPublicKey, CRYPTO_FUNCTIONS, addressRawEpConfig, (error, arep) => {
                 // Es wird geprüft ob ein Fehler aufgetreten ist
                 if(error !== undefined && error !== null) {
                     _openRawEndPoints.delete(endPointHash);

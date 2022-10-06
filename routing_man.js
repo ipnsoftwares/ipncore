@@ -363,16 +363,17 @@ const routingManager = (signWithNodeKey) => {
             // Die EnterPackage funktion wird überarbeitet
             const newObj = {
                 ...obj,
-                enterPackage:(package, calb) => {
+                sendRawPackage:(package, calb) => {
                     // Das Paket wird versendet
                     const sendStartTime = Date.now();
                     dprintok(10, ['Packet'], [colors.FgRed, get_hash_from_dict(package).toString('base64')], ['is sent to'], [colors.FgYellow, publicKey], ['via session'], [colors.FgMagenta, obj.sessionId()]);
-                    obj.enterPackage(package, (r) => {
+                    obj.sendRawPackage(package, (r) => {
                         const procTime = Date.now() - sendStartTime;
                         dprintok(10, ['Packet'], [colors.FgRed, get_hash_from_dict(package).toString('base64')], ['was sent'], [colors.FgYellow, publicKey], ['in ', colors.FgMagenta, procTime, ' ms'], ['via session'], [colors.FgMagenta, obj.sessionId()]);
                         calb(r, procTime);
                     });
-                }};
+                }
+            }
             fcklTotalReturnValue.push(newObj);
         };
 
@@ -632,16 +633,13 @@ const routingManager = (signWithNodeKey) => {
             const firstConnection = sessionEndPoints.get(endPointSession[0]);
 
             // Das Layer 1 Paket wird gebaut
-            const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:framePackage };
-
-            // Das Paket wird Signiert
-            const signatedPackage = signWithNodeKey(prePackage);
+            const prePackage = { type:'pstr', frame:framePackage };
 
             // Seichert die Aktuelle Uhrzeit ab
             const cts = Date.now();
 
             // Das Paket wird versendet
-            firstConnection.enterPackage(signatedPackage, () => {
+            firstConnection.sendRawPackage(prePackage, () => {
                 dprintinfo(10, ['Packet'], [colors.FgRed, get_hash_from_dict(framePackage).toString('base64')], ['was successfully forwarded from'], [colors.FgMagenta, connObj.sessionId()], ['to'], [colors.FgMagenta, firstConnection.sessionId()], ['in'], [colors.FgYellow, Date.now() - cts, colors.Reset, ' ms.'])
             })
         };
@@ -686,15 +684,11 @@ const routingManager = (signWithNodeKey) => {
                 // Der erste eintrag wird ausgewählt
                 const fextracted = best_routes.pop();
 
-                // Das Paket wird gebaut und Signiert
-                const unsignatedPackage = createLayerTwoPackage(fextracted.peerVersion(), framePackage);
-                const signatedPackage = signWithNodeKey(unsignatedPackage);
-
                 // Es wird geprüft ob die Verbindung mit diesem Peer besteht
                 if(fextracted.isConnected() !== true) _spckfnc();
 
                 // Das Paket wird an den Peer gesendet
-                fextracted.enterPackage(signatedPackage, (sendOk) => {
+                fextracted.sendRawPackage({ type:'pstr', frame:framePackage }, (sendOk) => {
                     if(sendOk === true) {
                         _signalPackageTransferedToPKey(framePackage.soruce, destination, fextracted).then(() => {
                             callbackSend(true);

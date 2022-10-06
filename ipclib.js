@@ -143,7 +143,7 @@ function initRequestConnection(nodeObj, client) {
             }
         }
         else {
-            console.log(decodedPackage)
+            console.log('ERR',decodedPackage)
         }
     };
 
