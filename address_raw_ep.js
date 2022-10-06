@@ -131,7 +131,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, localNodePrivateKey, so
     // Wird verwendet um ein nicht Signiertes Frame zu Signieren und abzusenden
     const _SEND_COMPLETED_LAYER2_FRAME = (sigantedFrame, socketobj=null, callback=null) => {
         // Das Layer 1 Paket wird gebaut
-        const prePackage = { crypto_algo:'ed25519', type:'pstr', version:consensus.version, frame:sigantedFrame };
+        const prePackage = { type:'pstr', frame:sigantedFrame };
 
         // Das Paket wird Signiert
         const signatedPackage = _SIGN_PRE_PACKAGE(prePackage);

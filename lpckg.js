@@ -22,6 +22,8 @@ function isValidateHelloPackageLayerOne(packageObject) {
     if(packageObject.sfunctions === undefined) _innerFieldsFound.push('sfunctions');
     if(_innerFieldsFound.length !== 0) { return false; }
 
+    // Es wird geprüft ob die Datentypen der einzelnenen Angaben korrekt sind
+
     // Es handelt sich um ein gültiges HelloPackage
     return true;
 };

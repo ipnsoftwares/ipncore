@@ -1,4 +1,5 @@
 const { get_hash_from_dict, create_random_session_id, encrypt_data, compute_shared_secret, sign_digest, verify_digest_sig, decrypt_data } = require('./crypto');
+const { isNodeOnPCLaptopOrEmbeddedLinuxSystem, parsIpAddress } = require('./utils');
 const { isValidateHelloPackageLayerOne } = require('./lpckg');
 const { dprintok, dprinterror, colors } = require('./debug');
 const { WebSocketServer, WebSocket } = require('ws');
@@ -55,6 +56,9 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
     // Speichert die version der gegenseite ab
     var _peerVersion = null;
 
+    // Speichert die Remote Adresse der Gegenseite ab
+    var _peerRemoteEp = null;
+
     // Gibt an wieviele Pakete gesendet und Empfangen wurden
     var _recivedPackages = 0, _sendPackages = 0, _recivedPackageBytes = 0, _sendPackagesBytes = 0, _errorRecivedPackages = 0, _errorRecivedPackageBytes = 0, _prate = 0;
 
@@ -66,6 +70,13 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         // Das Paket wird mittels CBOR Umgewandelt
         const convertedCborPackage = cbor.encode(signatedPackage);
 
+        // Es wird geprüft ob das Paket die Maxiaml größe Überschreitet
+        if(convertedCborPackage.length > consensus.max_package_byte_size) {
+            console.log('PACKAGE_DROPED');
+            wsConnObject.close();
+            return;
+        }
+
         // Wird asugeführt nachdem das Paket versendet wurde
         const _out_send_fnc = (serr) => {
             // Es wird geprüft ob die Daten gesendet werden konnten
@@ -74,7 +85,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                 let curation = Date.now() - currentTime;
 
                 // Es wird geprüft ob das übertragen des Paketes länger als 0 ms gedauert hat
-                if(curation === 0) _prate = curation;
+                if(curation <= 0) _prate = 1;
                 else _prate = convertedCborPackage.length / curation;
 
                 // Das Paket wurde erfolgreich versendet
@@ -82,9 +93,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                 _ADD_PACKAGE_SEND(convertedCborPackage);
                 callback(true);
             }
-            else {
-                callback(false);
-            }
+            else { callback(false); }
         };
 
         // Es wird geprüft ob die Sitzung Initalisiert wurde, wenn ja wird das Paket verschlüsselt bevor es versendet wird
@@ -93,7 +102,9 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
             encrypt_data(_sessionSharedSecret, convertedCborPackage, (error, chiperedPackage) => {
                 // Es wird geprüft ob bei dem versuch den Datensatz zu verschlüsseln ein Fehler aufgetreten ist
                 if(error !== null) {
-
+                    callback('crypto_error');
+                    wsConnObject.close();
+                    return;
                 }
 
                 // Das Verschlüsselte Paket wird versendet
@@ -123,26 +134,38 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
     // Wird verwendet um zu Signalisieren das X Bytes empfangen wurden
     const _ADD_PACKAGE_RECIVED = (packageData) => {
+        if(Buffer.isBuffer(packageData) === false) { wsConnObject.close(); return; }
         _recivedPackageBytes += packageData.length;
         _recivedPackages += 1;
     };
 
     // Wird verwendet um zu Signaliseren das X Bytes fehlerhaft empfangen wurden
     const _ADD_PACKAGE_RECIVED_INVALID = (packageData) => {
-
+        if(Buffer.isBuffer(packageData) === false) { wsConnObject.close(); return; }
+        _errorRecivedPackageBytes += packageData.length;
+        _errorRecivedPackages += 1;
     };
 
     // Wird verwendet um zu Signaliseren das X Bytes versendet wurden
     const _ADD_PACKAGE_SEND = (packageData) => {
+        if(Buffer.isBuffer(packageData) === false) { wsConnObject.close(); return; }
         _sendPackagesBytes += packageData.length;
         _sendPackages += 1;
     };
 
+    // Wird verwendet um eine Eingehende Verbindung zu Injoinen
+    const _JOIN_INCOMMING_CONNECTION = (connectionObj, callbf) => {
+
+    };
+
     // Speichert alle Objekt funktionen ab
     const _WS_SOCKET_FUNCTIONS = {
+        joinIncommingConnection:(connectionObj, callbf) =>_JOIN_INCOMMING_CONNECTION(connectionObj, callbf),
+        sendUnsigRawPackage:(rawPackage, callback) => _SEND_UNSIGNATED_RAW_PACKAGE(rawPackage, callback),
         sendPackage:(package, callback) => _SNED_SESSION_BASED_PACKAGES(package, callback),
         defaultTTL:consensus.defaults.ip_based_transport_session_default_ttl,
-        sendUnsigRawPackage:_SEND_UNSIGNATED_RAW_PACKAGE,
+        totalRXErrorBytes:() => _errorRecivedPackageBytes,
+        totalRXErrorPackages:() => _errorRecivedPackages,
         getPeerPublicKey:() => _destinationPublicKey,
         getPeerIPAddressUrl:() => sourceAddress,
         totalRXPackages:() => _recivedPackages,
@@ -171,6 +194,11 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
     // Wird aller 5 Sekunden ausgeführt und führt einen Ping innerhalb der Aktuellen Verbindung durch
     const _PING_PONG_TIMER = () => {
+        // Es wird geprüft ob noch eine Verbindung mit dem Peer besteht
+        if(_isConnected !== true) {
+            return;
+        }
+
         // Es wird ein Zufälliger Wert erzeugt
         const pingPackageID = v4();
 
@@ -222,13 +250,34 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
             // Wird als Timer ausgeführt
             if(_pingPongTimer === null) { _pingPongTimer = setTimeout(_PING_PONG_TIMER, 1000); }
+
+            // Es wird geprüft ob es sich um eine Eingehende Verbindung handelt
+            if(incomming === true && isNodeOnPCLaptopOrEmbeddedLinuxSystem() === true) {
+                // Es wird geprüft ob der Client einen Port für p2p Verbindungen angegeben hat
+                if(_peerRemoteEp !== null) {
+                    console.log('INCOMMING_CONNECTION_P2P_FUNCTION_NOT_IMPLEMENTED');
+                }
+            }
         });
     };
 
     // Wird verwendet um ein HelloPackage an die gegenseite zu senden
     const _SEND_HELLO_PACKAGE_TO_PEER = (callback) => {
         // Das HelloPackage wird gebaut
-        const helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey) };
+        let helloPackage = null;
+        if(isNodeOnPCLaptopOrEmbeddedLinuxSystem() === true) {
+            if(!incomming) {
+                const availPort = localeNodeObject.localServerPorts('ws');
+                if(availPort !== null) helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), port:{ type:'ws', ep:availPort.port } }; 
+                else helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), port:null }; 
+            }
+            else {
+                helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), locport:null }; 
+            }
+        }
+        else {
+            helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), locport:null }; 
+        }
 
         // Es wird geprüft ob die Verbindung mit der Gegenseite noch besteht
         if(_isConnected !== true) {
@@ -300,6 +349,18 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
             _ADD_PACKAGE_RECIVED_INVALID(package_data);
             wsConnObject.close();
             return;
+        }
+
+        // Es wird geprüft ob es sich um eine Eingehene Verbindung handelt, wenn ja wird geprüft ob die gegenseite einen Port angegeben hat
+        if(incomming === true && isNodeOnPCLaptopOrEmbeddedLinuxSystem() === true) {
+            // Es wird geprüft ob ein Port vorhanden ist
+            if(package_data.port !== null) {
+                // Es wird versucht eine Verbindung herzustellen
+                if(package_data.port.type === 'ws') {
+                    // Ließt die Adresse der gegenseite aus
+                    _peerRemoteEp = package_data.port;
+                }
+            }
         }
 
         // Es wird geprüft ob die Verbindung mit dem Peer noch besteht, wenn nicht wird der Vorgang abgebrochen
@@ -566,8 +627,8 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         // Es wird geprüft ob die Verbindung besteht
         if(!_isConnected) return;
 
-        // Es wird versucht die Aktuelle ID einzulesen
         try{
+            // Es wird versucht die Aktuelle ID einzulesen
             const readedID = Buffer.from(packageInnerValue).toString('utf8');
 
             // Es wird geprüft ob es einen passenden Offenen Ping Vorgang gibt
@@ -639,7 +700,7 @@ const wsConnectTo = (socketKeyPair, localeNodeObject, serverUrl, sfunctions=[], 
 };
 
 // Erstellt einen neuen Lokalen Server
-const wsServer = (socketKeyPair, localeNodeObject, localPort, sfunctions=[]) => {
+const wsServer = (socketKeyPair, localeNodeObject, localPort, localIp, sfunctions=[]) => {
     // Es wird ein ID für deas Serverobjekt erzeugt
     const objId = v4();
 
@@ -648,8 +709,13 @@ const wsServer = (socketKeyPair, localeNodeObject, localPort, sfunctions=[]) => 
 
     // Nimmt neue Verbindungen entgegen
     wss.on('connection', (ws, req) => {
+        // Es wird ermittelt ob es sich um eine IPv4 oder IPv6 Adresse handelt
+        const parsedPeerIpAddress = parsIpAddress(req.socket.remoteAddress);
+        if(parsedPeerIpAddress === null) { return; }
+
         // Die Adresse des Clients wird ermittelt
-        const newUrlAddress = `ws://${req.socket.remoteAddress}@${req.socket.remotePort}`
+        const varEpIp = (parsedPeerIpAddress.ver === 'ipv4') ? parsedPeerIpAddress.adr : `[${parsedPeerIpAddress.adr}]`;
+        const newUrlAddress = `ws://${varEpIp}:${req.socket.remotePort}`
 
         // Debug
         dprintok(10, ['Accepted new incoming websocket connection from'], [colors.FgMagenta, req.socket.remoteAddress]);
@@ -662,8 +728,11 @@ const wsServer = (socketKeyPair, localeNodeObject, localPort, sfunctions=[]) => 
     dprintok(10, ['New websocket server created on'], [colors.FgMagenta, localPort], ['with id'], [colors.FgCyan, objId]);
     return {
         _id:objId,
-        startedSince:null,
-        privateKey:null,
+        type:'ws',
+        port:localPort,
+        ip:(localIp === null) ? '*' : localIp, 
+        startedSince:Date.now(),
+        keyPair:socketKeyPair,
         close:() => {
 
         },
@@ -673,7 +742,6 @@ const wsServer = (socketKeyPair, localeNodeObject, localPort, sfunctions=[]) => 
 
 // Exportiert alle Funktionen
 module.exports = {
-    wsConnection:wsConnection,
     wsConnectTo:wsConnectTo,
     wsServer:wsServer 
 };

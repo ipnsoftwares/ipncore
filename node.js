@@ -1,5 +1,6 @@
 const { get_hash_from_dict, generate_ed25519_keypair } = require('./crypto');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
+const { isNodeOnPCLaptopOrEmbeddedLinuxSystem } = require('./utils');
 const { createLocalSocket, SockTypes } = require('./socket');
 const { addressRawEndPoint } = require('./address_raw_ep');
 const { verifyLayerThreePackage } = require('./lpckg');
@@ -182,7 +183,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     // Wird verwendet um einen neue Verbindung zu Registrieren
     const _REGISTER_NEW_CONNECTION = (connObj, pprotFnc, callback) => {
         // Es wird geprüft ob es sich um ein Objekt handelt
-        
+        if(typeof connObj !== 'object') { callback(true); return; }
 
         // Es wird geprüft ob es bereits eine Verbindung mit dem Peer gibt
         if(_peerPubKeys.includes(connObj.getPeerPublicKey())) { callback(false); return; }
@@ -1081,6 +1082,20 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         _PACKAGE_SEND_LOOP_FUNCTION();
     };
 
+    // Gibt Lokal Verfügbare Server Ports aus
+    const _GET_LOCAL_SERVER_PORTS = (protc) => {
+        // Es werden alle Sockets abgerufen
+        for(const otem of _serverSockets.keys()) {
+            const ritem = _serverSockets.get(otem);
+            if(ritem.type === protc) {
+                if(ritem.ip === '*') return ritem;
+            }
+        }
+
+        // Es wurde kein Passender Socket gefunden
+        return null;
+    };
+
     // Stellt alle Websocket Funktionen bereit
     const _SOCKET_FUNCTIONS = {
         signAndReturnPubKeyAndSig:(digestValue) => _SIGN_DIGEST_WLSKEY(digestValue),
@@ -1091,13 +1106,15 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         unregisterConnection:_UNREGISTER_CONNECTION,
         startClientServices:_START_PEER_SERVICES,
         enterCommandPackage:_ENTER_CMD_PACKAGES,
+        localServerPorts:_GET_LOCAL_SERVER_PORTS,
         crypto:CRYPTO_FUNCTIONS
     };
 
     // Stellt alle Node Funktionen bereit
     const _RAW_FUNCTIONS = {
+        addPeerClientConnection:(serverURL, accepted_functions, cb, reconnectTime) => addPeerClientConnection(serverURL, accepted_functions, cb, reconnectTime),
+        initAddressRoute:(publicKey, callback, timeout) => initAddressRoute(publicKey, callback, timeout),
         totalPeers:() => _peerPubKeys.length,
-        initAddressRoute:(publicKey, callback, timeout) => initAddressRoute(publicKey, callback, timeout)
     };
 
     // Speichert die Standardeinstellungen für Adress EndPoints ab
@@ -1111,9 +1128,14 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Wir verwendet um einen Websocket Server zu erstellen
-    const addNewWSServer = (localPort, options=null) => {
+    const addNewWSServer = (localPort, localIp=null, options=null) => {
+        // Es wird geprüft ob Optionen angegeben wurden
+        if(options !== null) {
+            
+        }
+
         // Erzeugt ein neues Websocket Server objekt
-        const serverObj = wsServer(localPrivateKeyPair, _SOCKET_FUNCTIONS, localPort, localNodeFunctions);
+        const serverObj = wsServer(localPrivateKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, localNodeFunctions);
 
         // Das Serverobjekt wird abgespeichert
         _serverSockets.set(serverObj._id, serverObj);
@@ -1150,7 +1172,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 }
             };
 
-            // Die Websocket Verbindung wird aufgebaut
+            // Die Verbindung wird hergestellt
             wsConnectTo(localPrivateKeyPair, _SOCKET_FUNCTIONS, readedURL.toString(), localNodeFunctions, accepted_functions, _FNC_OPEN_CONNECTION, _FNC_CLOSED_CONNECTION);
         }
     };
