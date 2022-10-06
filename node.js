@@ -21,7 +21,7 @@ const stringIsAValidUrl = (s) => {
 
 
 // Das Node Objekt
-const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], nodeConfig={}) => {
+const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], privateSeed=null) => {
     // Speichert alle Nodes ab, welche bei einer neuen oder bei bestehenden ausgehenden Verbindung Informiert werden wollen
     var _notifyPeerByNewOutPeerConnection = [];
 
@@ -1138,7 +1138,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], nod
     // Wir verwendet um einen Websocket Server zu erstellen (Ip / Tor)
     const addNewWSServer = (localPort, localIp=null, isTor=false) => {
         // Erzeugt ein neues Websocket Server objekt
-        const serverObj = wsServer(localPrivateKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, localNodeFunctions);
+        const serverObj = wsServer(localPrivateKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, null, localNodeFunctions);
 
         // Das Serverobjekt wird abgespeichert
         _serverSockets.set(serverObj._id, serverObj);

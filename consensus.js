@@ -33,6 +33,9 @@ const ttl_for_routing_request = 120000;
 // Speichert die Maxiamle größe für Layer 1 Pakete ab
 const max_package_byte_size = 1200000;
 
+// Gibt die Maximale Größe für Pakete an
+const package_ws_max_sige = 1048576;
+
 // Gibt den Pfad des Unix Sockets für die Root freie API an
 const unix_socket_none_root_path = `${os.tmpdir()}/${current_network.toLowerCase()}/`;
 
@@ -105,6 +108,7 @@ module.exports = {
     network:current_network,
     dns_servers:dns_servers,
     is_mainnet:is_mainnet,
+    package_ws_max_sige:package_ws_max_sige,
     defaults:{
         ip_based_transport_session_default_ttl:ip_based_transport_session_default_ttl,
         tor_based_transport_session_default_ttl:tor_based_transport_session_default_ttl,

@@ -577,7 +577,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
     // Nimmt eintreffende Pakete entgegen
     wsConnObject.on('message', (message) => {
         // Es wird geprüft ob ein Datensatz verfügbar ist
-        if(message === undefined || message === null) {
+        if(message === undefined || message === null) {
             console.log('INVALID_DATA_RECIVED::CONNECTION_CLOSED');
             wsConnObject.close();
             return;
@@ -680,7 +680,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 // Baut eine ausgehende Verbindung auf
 const wsConnectTo = (socketKeyPair, localeNodeObject, serverUrl, sfunctions=[], accepted_functions=['boot_node'], callback=null, connectionClosedCallback=null) => {
     // Das Websocket Objekt wird vorbereitet
-    const ws = new WebSocket(serverUrl);
+    const ws = new WebSocket(serverUrl, ['ABC']);
 
     // Speichert das Inited Objekt ab
     var _initedObject = null;
@@ -699,12 +699,12 @@ const wsConnectTo = (socketKeyPair, localeNodeObject, serverUrl, sfunctions=[], 
 };
 
 // Erstellt einen neuen Lokalen Server
-const wsServer = (socketKeyPair, localeNodeObject, localPort, localIp, sfunctions=[]) => {
+const wsServer = (socketKeyPair, localeNodeObject, localPort, localIp, sslcert=null, sfunctions=[]) => {
     // Es wird ein ID für deas Serverobjekt erzeugt
     const objId = v4();
 
     // Der Webserver wird gestartet
-    const wss = new WebSocketServer({ port: localPort });
+    const wss = new WebSocketServer({ port: localPort, maxPayload:consensus.maximal_package_size });
 
     // Nimmt neue Verbindungen entgegen
     wss.on('connection', (ws, req) => {
@@ -715,6 +715,17 @@ const wsServer = (socketKeyPair, localeNodeObject, localPort, localIp, sfunction
         // Die Adresse des Clients wird ermittelt
         const varEpIp = (parsedPeerIpAddress.ver === 'ipv4') ? parsedPeerIpAddress.adr : `[${parsedPeerIpAddress.adr}]`;
         const newUrlAddress = `ws://${varEpIp}:${req.socket.remotePort}`
+
+        // Es wird geprüft ob der Client einen Vorgangsheader angegeben hat
+        if(req.headers.hasOwnProperty('sec-websocket-protocol') === true) {
+            // Es wird geprüft ob es sich um einen gültigen Vorgangsheader handelt
+            const sockWebsockProt = req.headers['sec-websocket-protocol'].split(',');
+
+            // Es wird geprüft ob es sich um gültige Angaben handelt
+            for(const otem of sockWebsockProt) {
+
+            };
+        }
 
         // Debug
         dprintok(10, ['Accepted new incoming websocket connection from'], [colors.FgMagenta, req.socket.remoteAddress]);
