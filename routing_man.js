@@ -8,7 +8,7 @@ const crypto = require('crypto');
 
 
 // Routing Manager
-const routingManager = (signWithNodeKey) => {
+const routingManager = () => {
     // Speichert alle Sitzungen ab
     var sessionEndPoints = new Map();
 

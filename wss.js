@@ -162,7 +162,6 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
     const _WS_SOCKET_FUNCTIONS = {
         joinIncommingConnection:(connectionObj, callbf) =>_JOIN_INCOMMING_CONNECTION(connectionObj, callbf),
         sendUnsigRawPackage:(rawPackage, callback) => _SEND_UNSIGNATED_RAW_PACKAGE(rawPackage, callback),
-        sendPackage:(package, callback) => _SNED_SESSION_BASED_PACKAGES(package, callback),
         defaultTTL:consensus.defaults.ip_based_transport_session_default_ttl,
         totalRXErrorBytes:() => _errorRecivedPackageBytes,
         totalRXErrorPackages:() => _errorRecivedPackages,

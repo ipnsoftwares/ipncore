@@ -21,7 +21,7 @@ const stringIsAValidUrl = (s) => {
 
 
 // Das Node Objekt
-const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => {
+const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], nodeConfig={}) => {
     // Speichert alle Nodes ab, welche bei einer neuen oder bei bestehenden ausgehenden Verbindung Informiert werden wollen
     var _notifyPeerByNewOutPeerConnection = [];
 
@@ -39,6 +39,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
     // Speichert alle Offenen Sockets ab
     const _openSockets = new Map();
+
+    // Speichert alle Schlüsselpaar ab
+    const _localKeyPairs = new Map();
 
     // Gibt alle Crypto Funktionen an
     const CRYPTO_FUNCTIONS = {
@@ -66,7 +69,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Speichert alle Bekannten Routen ab
-    const _rManager = routingManager(_SIGN_PRE_PACKAGE);
+    const _rManager = routingManager();
 
     // Speichert die Öffentlichen Schlüssel aller FullRelayNodes ab
     var _fullRelayNodes = [];
@@ -79,6 +82,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
     // Speichert alle Offenen RAWEndPoints ab
     const _openRawEndPoints = new Map();
+
+    // Die Schlüsselpaare für diesen Node werden erzeugt
 
     // Startet den BOOT_NODE_REQUEST
     const _START_BOOT_NODE_PEER_REQUEST = (connObj) => {
@@ -180,6 +185,23 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         _TRANSMIT_PEER_ENDPOINTS(connObj);
     };
 
+    // Wird verwendet um alle Lokalen PublicKeys auszugeben
+    const _GET_ALL_LOCAL_PUBLIC_KEYS = () => {
+        let reitem = [];
+        for(const otem of _localKeyPairs.keys()) reitem.push(`${otem}`);
+        return reitem;
+    };
+
+    // Wird verwendet um einen Privaten Schlüssel auf Basis des Masterkeys zu erstellen
+    const _GENERATE_KEYPAIR_FROM_MKEY = () => {
+
+    };
+
+    // Erzeugt einen neues Schlüsselpaar, welches nicht gespeichert wird
+    const _GENERATE_RANDOM_KEYPAIR = () => {
+
+    };
+
     // Wird verwendet um einen neue Verbindung zu Registrieren
     const _REGISTER_NEW_CONNECTION = (connObj, pprotFnc, callback) => {
         // Es wird geprüft ob es sich um ein Objekt handelt
@@ -230,7 +252,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         // Die Basisfunktionen für das Routing werden erzeugt
         const routingFunctions = {
             sendRawPackage:connObj.sendUnsigRawPackage,
-            enterPackage:connObj.sendPackage,
             isConnected:connObj.isConnected,
             pingTime:connObj.getPingTime,
             sessionId:connObj.sessionId,
@@ -378,7 +399,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     // Prüft ob die Signatur eines Paketes korrekt ist
     const _VERIFY_FRAME_SIGNATURE = (sigantedFrame) => {
         // Es wird geprüft ob der Öffentliche Schlüssel, die Signatur sowie der Algo vorhanden sind
-        if(sigantedFrame.hasOwnProperty('crypto_algo') !== true) return false;
         if(sigantedFrame.hasOwnProperty('source') !== true) return false;
         if(sigantedFrame.hasOwnProperty('ssig') !== true) return false;
 
@@ -386,34 +406,25 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         const splitedValues = sigantedFrame.crypto_algo.split('_');
         if(splitedValues.length === 0) return false;
 
+        // Das Paketobjekt wird geklont
+        let clonedObj = JSON.parse(JSON.stringify(sigantedFrame));
+
+        // Es wird geprüft ob die Länge des Öffentlichen Schlüssels korrekt ist
+        if(sigantedFrame.source.length !== 64) return false;
+
+        // Es wird geprüft ob die Länge der Signatur korrekt ist
+        if(sigantedFrame.ssig.length !== 128) return false;
+
+        // Es wird versucht den Öffentlichen Schlüssel sowie die Signatur zu Dekodieren
+        try{ var decodedPublicKey = Buffer.from(sigantedFrame.source, 'hex'), decodedSignature = Buffer.from(sigantedFrame.ssig, 'hex'); }
+        catch(e) { console.log(e); return false; }
+
+        // Die Signatur wird geprüft
+        delete clonedObj.sig, clonedObj.pkey;
+        if(CRYPTO_FUNCTIONS.ed25519.verify_sig(decodedSignature, get_hash_from_dict(clonedObj), decodedPublicKey)) return false;
+
         // Es wird geprüft ob die Signatur korrekt ist
-        switch (splitedValues[0]) {
-            case "ed25519":
-                // Das Paketobjekt wird geklont
-                let clonedObj = JSON.parse(JSON.stringify(sigantedFrame));
-
-                // Es wird geprüft ob die Länge des Öffentlichen Schlüssels korrekt ist
-                if(sigantedFrame.source.length !== 64) return false;
-
-                // Es wird geprüft ob die Länge der Signatur korrekt ist
-                if(sigantedFrame.ssig.length !== 128) return false;
-
-                // Es wird versucht den Öffentlichen Schlüssel sowie die Signatur zu Dekodieren
-                try{ var decodedPublicKey = Buffer.from(sigantedFrame.source, 'hex'), decodedSignature = Buffer.from(sigantedFrame.ssig, 'hex'); }
-                catch(e) { console.log(e); return false; }
-
-                // Die Signatur wird geprüft
-                delete clonedObj.sig, clonedObj.pkey;
-                if(CRYPTO_FUNCTIONS.ed25519.verify_sig(decodedSignature, get_hash_from_dict(clonedObj), decodedPublicKey)) return false;
-
-                // Es wird geprüft ob die Signatur korrekt ist
-                return true;
-            case "nist256":
-                return true;
-            case "secp256k1":
-                return true;
-            default: return false;
-        }
+        return true;
     };
 
     // Signiert ein Frame
@@ -490,8 +501,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
             // Es wird eine Zufällige Nonce erstellt, mit dieser Nonce werden die Daten verschlüsselt
             const randomValue = crypto.randomBytes(24);
 
-            // Das Antwortframe wird gebaut
-            const preLayer2Frame = {
+            // Das Frame wird Signiert
+            const signatedFrame = _SIGN_FRAME({
                 crypto_algo:'ed25519_salsa20_poly1305',
                 source:Buffer.from(localPrivateKeyPair.publicKey).toString('hex'),
                 destination:packageFrame.source,
@@ -503,18 +514,12 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                     },
                     pbody:{}
                 }
-            };
-
-            // Das Frame wird Signiert
-            const signatedFrame = _SIGN_FRAME(preLayer2Frame);
+            });
 
             // Es wird geprüft ob es sich um ein Striktes Paket handelt, wenn ja wird es über die Verbindung zurückgesendet, über die es Empfangen wurde
             if(strictMode === true) {
-                // Das Layer 1 Paket wird gebaut
-                const prePackage = { crypto_algo:'ed25519', type:'pstr',frame:signatedFrame };
-
                 // Das Paket wird direkt zurück an den Absender gesendet
-                connObj.sendUnsigRawPackage(prePackage, (r) => {
+                connObj.sendUnsigRawPackage({ type:'pstr',frame:signatedFrame }, (r) => {
                     // Dem Routing Manager wird Siganlisiert dass das Paket erfolgreich übertragen wurden
                     _rManager.signalPackageTransferedToPKey(packageFrame.destination, packageFrame.source, connObj).then(() => {
                         dprintinfo(10, ['Ping'], [colors.FgRed, get_hash_from_dict(decryptedPackage).toString('base64')], ['returned successfully.']);
@@ -583,6 +588,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
         dprintok(10, ['Package'], [colors.FgRed, get_hash_from_dict(package.frame).toString('base64')], ['recived over'], [colors.FgMagenta, connObj.sessionId()], ['from ', colors.FgYellow, package.frame.source]);
 
         // Es wird geprüft ob es sich bei dem Empfänger um eine Lokale Adresse handelt, wenn nicht wird das Paket an den Routing Manager übergeben
+        console.log(_GET_ALL_LOCAL_PUBLIC_KEYS())
         if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === package.frame.destination) {
             // Es wird geprüft ob es für die Quelle eine Route gibt
             _rManager.hasRoutes(package.frame.source, connObj.sessionId())
@@ -594,7 +600,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
                 await _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination, connObj);
 
                 // Das Paket wird Lokal weiter verarbeitet
-                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState) => { });
+                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState) => {
+
+                });
             })
         }
         else {
@@ -1127,13 +1135,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
 
     };
 
-    // Wir verwendet um einen Websocket Server zu erstellen
-    const addNewWSServer = (localPort, localIp=null, options=null) => {
-        // Es wird geprüft ob Optionen angegeben wurden
-        if(options !== null) {
-            
-        }
-
+    // Wir verwendet um einen Websocket Server zu erstellen (Ip / Tor)
+    const addNewWSServer = (localPort, localIp=null, isTor=false) => {
         // Erzeugt ein neues Websocket Server objekt
         const serverObj = wsServer(localPrivateKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, localNodeFunctions);
 
@@ -1142,7 +1145,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node']) => 
     };
 
     // Wird verwendet um eine Webserver verbindung herzustellen
-    const addPeerClientConnection = (serverURL, accepted_functions=['boot_node'], cb=null, reconnectTime=5000) => {
+    const addPeerClientConnection = (serverURL, accepted_functions=['boot_node'], cb=null, reconnectTime=5000, overTor=false) => {
         // Die URL wird geprüft
         const readedURL = stringIsAValidUrl(serverURL);
         if(readedURL === false) { console.log('INVALID_URL'); return; }

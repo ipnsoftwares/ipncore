@@ -1,4 +1,7 @@
+const { sha256 } = require('@noble/hashes/sha256');
 const { binary_to_base58 } = require('base58-js');
+const { hmac } = require('@noble/hashes/hmac');
+const { hkdf } = require('@noble/hashes/hkdf');
 const _sodium = require('libsodium-wrappers');
 const crypto = require('crypto');
 const { SHA3 } = require('sha3');
@@ -9,18 +12,16 @@ const cbor = require('cbor');
 // Speichert das Sodium Modell ab
 let _crypto_sodium_modul = null;
 
-// Speichert alle verfügbaren Verfahren ein
-const CRYPTO_ALGO = {
-    ed25519:'ed25519',
-    secp256k1:'secp256k1',
-    frost_ed25519:'frost_ed25519',
-};
-
 // Erstellt einen Hash aus einem Dict
 function get_hash_from_dict(jsonDict) {
+    // Die Inahlte des Objektes werden Sortiert
     const ordered = Object.keys(jsonDict).sort().reduce((obj, key) => { obj[key] = jsonDict[key]; return obj; },{});
+
+    // Es wird ein Hash aus dem Sortierten Objekt erstellt
     const hash = new SHA3(384);
     hash.update(cbor.encode(ordered));
+
+    // Das Hash wird zurückgegeben
     return hash.digest();
 };
 
@@ -37,58 +38,6 @@ function init_crypto(callback) {
             _crypto_sodium_modul = _sodium;
             callback(true);
         });
-    }
-};
-
-// Erstellt ein Schlüsselpaar aus einem Seed
-function crypto_sign_seed_keypair(crypto_algo, priv_key_bytes) {
-    // Es wird geprüft ob Sodium Initalisiert wurde
-    if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
-
-    // Das Schlüsselpaar wird erstellt
-    switch(crypto_algo) {
-        case CRYPTO_ALGO.ed25519:
-            var cobj = _crypto_sodium_modul.crypto_sign_seed_keypair(priv_key_bytes);
-            return { publicKey:Buffer.from(cobj.publicKey), privateKey:Buffer.from(cobj.privateKey), keyType:CRYPTO_ALGO.ed25519 };
-        case CRYPTO_ALGO.secp256k1:
-            var cobPub = secp256k1.getPublicKey(priv_key_bytes, true);
-            return { publicKey:Buffer.from(cobPub), privateKey:Buffer.from(priv_key_bytes), keyType:CRYPTO_ALGO.secp256k1 };
-        case CRYPTO_ALGO.frost_ed25519:
-            throw new Error('disabeld');
-        default:
-            throw new Error('unkown_algo');
-    }
-};
-
-// Signiert einen Datensatz
-function crypto_sign_message(crypto_algo, message, priv_key_bytes) {
-    // Es wird geprüft ob Sodium Initalisiert wurde
-    if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
-
-    // Das Schlüsselpaar wird erstellt
-    switch(crypto_algo) {
-        case CRYPTO_ALGO.ed25519:
-            return Buffer.from(_crypto_sodium_modul.crypto_sign_detached(new Uint8Array(message), new Uint8Array(priv_key_bytes)));
-        case CRYPTO_ALGO.secp256k1:
-            return Buffer.from(secp256k1.signSync(new Uint8Array(message), new Uint8Array(message)));
-        default:
-            throw new Error('unkown_algo');
-    }
-};
-
-// Überprüft ob eine Signatur korrekt ist
-function crypto_verify_sig(crypto_algo, message, sig, public_key) {
-    // Es wird geprüft ob Sodium Initalisiert wurde
-    if(_crypto_sodium_modul === null) { throw new Error('no_crypto_lib_loaded'); }
-
-    // Das Schlüsselpaar wird erstellt
-    switch(crypto_algo) {
-        case CRYPTO_ALGO.ed25519:
-            return _crypto_sodium_modul.crypto_sign_verify_detached(new Uint8Array(sig), new Uint8Array(message), new Uint8Array(public_key));
-        case CRYPTO_ALGO.secp256k1:
-            return secp256k1.verify(new Uint8Array(sig), new Uint8Array(message), new Uint8Array(public_key));
-        default:
-            throw new Error('unkown_algo');
     }
 };
 
@@ -167,10 +116,27 @@ function generate_ed25519_keypair() {
     return _crypto_sodium_modul.crypto_sign_keypair();
 };
 
+// Leitet einen Schlüssel von einem Master Schlüssel ab
+function create_deterministic_keypair(masterSeed, path) {
+    // Aus dem Pfad wird ein SHA256 Hash erzeugt
+    const h1b = sha256.create().update(Uint8Array.from(Buffer.from(path))).digest();
 
+    // Es wird versucht den Schlüssel abzuleiten
+    const dervKey = hkdf(sha256, Uint8Array.from(masterSeed), h1b, path, 32);
+
+    // Aus dem Abgeleiteten Schlüssel wird ein Schlüsselpaar erstellt
+    const keyPair = _crypto_sodium_modul.crypto_sign_seed_keypair(dervKey);
+
+    // Das Ergebniss wird zurückgegeben
+    return keyPair;
+};
+
+
+// Die Funktionen werden exportiert
 module.exports = {
     init_crypto:init_crypto,
     get_hash_from_dict:get_hash_from_dict,
+    create_deterministic_keypair:create_deterministic_keypair,
     create_random_session_id:create_random_session_id,
     generate_ed25519_keypair:generate_ed25519_keypair,
     compute_shared_secret:compute_shared_secret,
@@ -178,10 +144,4 @@ module.exports = {
     sign_digest:sign_digest,
     decrypt_data:decrypt_data,
     encrypt_data:encrypt_data,
-    eccdsa:{
-        crypto_algo:CRYPTO_ALGO,
-        crypto_sign_seed_keypair:crypto_sign_seed_keypair,
-        crypto_sign_message:crypto_sign_message,
-        crypto_verify_sig:crypto_verify_sig
-    }
 }
