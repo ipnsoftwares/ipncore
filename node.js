@@ -89,21 +89,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         }
     }
 
-    // Signiert ein Paket mit dem Lokalen Schlüssel
-    const _SIGN_DIGEST_WLSKEY = (digestValue) => {
-        const sig = CRYPTO_FUNCTIONS.ed25519.sign(digestValue, localPrivateKeyPair.privateKey);
-        return { sig:sig, pkey:localPrivateKeyPair.publicKey }
-    };
-
-    // Signiert ein PreBuilded Object und gibt ein Fertiges Objekt aus
-    const _SIGN_PRE_PACKAGE = (prePackage) => {
-        // Das Paket wird Signiert
-        const packageSig = _SIGN_DIGEST_WLSKEY(get_hash_from_dict(prePackage));
-
-        // Das Finale Paket wird Signiert
-        return Object.assign(prePackage, { pkey:Buffer.from(packageSig.pkey).toString('hex'), sig:Buffer.from(packageSig.sig).toString('hex') });
-    };
-
     // Startet den BOOT_NODE_REQUEST
     const _START_BOOT_NODE_PEER_REQUEST = (connObj) => {
         // Es wird geprüft ob es bereits einen Offenen Vorgang für diesen Public Key gibt
@@ -459,12 +444,12 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
     };
 
     // Signiert ein Frame
-    const _SIGN_FRAME = (unsignedFrame) => {
+    const _SIGN_FRAME = (privKey, unsignedFrame) => {
         // Das Paket wird Signiert
-        const packageSig = _SIGN_DIGEST_WLSKEY(get_hash_from_dict(unsignedFrame));
+        const packageSig = sign_digest(get_hash_from_dict(unsignedFrame), privKey.privateKey);
 
         // Das Finale Paket wird Signiert
-        return Object.assign(unsignedFrame, { source:Buffer.from(packageSig.pkey).toString('hex'), ssig:Buffer.from(packageSig.sig).toString('hex') });
+        return Object.assign(unsignedFrame, { source:Buffer.from(privKey.publicKey).toString('hex'), ssig:Buffer.from(packageSig).toString('hex') });
     };
 
     // Nimmt Pakete für Lokale Sockets entgegen
@@ -533,7 +518,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
             const randomValue = crypto.randomBytes(24);
 
             // Das Frame wird Signiert
-            const signatedFrame = _SIGN_FRAME({
+            const signatedFrame = _SIGN_FRAME(retrivedKeyPair, {
                 crypto_algo:'ed25519_salsa20_poly1305',
                 source:Buffer.from(retrivedKeyPair.publicKey).toString('hex'),
                 destination:packageFrame.source,
@@ -654,11 +639,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         // Das Finale Paket wird gebaut
         const finalPackage = Object.assign(openRouteSessionPackage, { addrsig:Buffer.from(addrSig).toString('hex') });
 
-        // Das Paket wird Signiert
-        const signatedPackage = _SIGN_PRE_PACKAGE(finalPackage);
-
         // Das Paket wird an die gegenseite gesendet
-        connObj.sendUnsigRawPackage(signatedPackage, () => {
+        connObj.sendUnsigRawPackage(finalPackage, () => {
             callback(true); 
         });
     };
@@ -1135,7 +1117,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
 
     // Stellt alle Websocket Funktionen bereit
     const _SOCKET_FUNCTIONS = {
-        signAndReturnPubKeyAndSig:(digestValue) => _SIGN_DIGEST_WLSKEY(digestValue),
         enterRoutingRegRespPackage:_ENTER_ROUTING_REG_RESP_PACKAGE,
         enterNextLayerPackage:_ENTER_RECIVED_SECOND_LAYER_PACKAGES,
         enterResponsePackage:_ENTER_RESPONSE_PACKAGES,
@@ -1165,7 +1146,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
     };
 
     // Wir verwendet um einen Websocket Server zu erstellen (Ip / Tor)
-    const addNewWSServer = (localPort, localIp=null, isTor=false) => {
+    const addNewWSServer = (localPort, localIp=null, isTor=false, privKeyPath=null) => {
         // Erzeugt ein neues Websocket Server objekt
         const serverObj = wsServer(localPrivateKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, localNodeFunctions);
 

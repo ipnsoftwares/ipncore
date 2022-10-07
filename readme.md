@@ -59,9 +59,7 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
 - [ ] Optimization for mobile devices
 - [ ] Network protocols:
   - [x] [Websocket](https://en.wikipedia.org/wiki/WebSocket) | [INIP0002](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
-  - [ ] [QUIC](https://en.wikipedia.org/wiki/QUIC)
   - [ ] [UDP](https://en.wikipedia.org/wiki/User_Datagram_Protocol)
-  - [ ] [TCP](https://en.wikipedia.org/wiki/Transmission_Control_Protocol)
   - [ ] [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security)
   - [ ] [TOR](https://en.wikipedia.org/wiki/Tor_(network))
   - [ ] [i2p](https://en.wikipedia.org/wiki/I2P)
