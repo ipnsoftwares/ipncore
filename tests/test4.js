@@ -1,4 +1,5 @@
 const _sodium = require('libsodium-wrappers');
+const { init_crypto } = require('../crypto');
 const { Node } = require('../node');
 const crypto = require('crypto');
 
@@ -8,10 +9,12 @@ const crypto = require('crypto');
     await _sodium.ready;
     const sodium = _sodium;
 
-    var k = sodium.crypto_sign_seed_keypair(crypto.createHash('sha256').update('key4').digest());
-    var n = Node(sodium, k);
-    console.log(Buffer.from(k.publicKey).toString('hex'))
-    n.addPeerClientConnection('ws://127.0.0.1:8081')
-    n.addNewWSServer(8089);
+    init_crypto(() => {
+        var k = sodium.crypto_sign_seed_keypair(crypto.createHash('sha256').update('key4').digest());
+        var n = Node(sodium, k);
+        console.log(Buffer.from(k.publicKey).toString('hex'))
+        n.addPeerClientConnection('ws://127.0.0.1:8081')
+        n.addNewWSServer(8089);
+    });
 })();
 

@@ -1,7 +1,8 @@
 const _sodium = require('libsodium-wrappers');
+const { init_crypto } = require('../crypto');
 const { Node } = require('../node');
+const figlet = require('figlet');
 const crypto = require('crypto');
-const { dprintinfo } = require('../debug');
 
 
 
@@ -9,39 +10,53 @@ const { dprintinfo } = require('../debug');
     await _sodium.ready;
     const sodium = _sodium;
 
-    var destpubk = '4d1363e238850ff3802e6ade30cc91cf8053769536a6ace6b41f7c0143c2a5fc';
-    var k = sodium.crypto_sign_seed_keypair(crypto.createHash('sha256').update('key2').digest());
-    var r = Node(sodium, k, []);
-    console.log(Buffer.from(k.publicKey).toString('hex'))
+    // Die Krypto funktionen werden vorbereitet
+    init_crypto(() => {
+        // Der Testseed wird erzeugt
+        const plainSeed = crypto.createHash('sha256').update('key2').digest();
 
-    // Es wird versucht eine Verbindung mit dem Peer herzustellen
-    r.addPeerClientConnection("ws://127.0.0.1:8089", [], () => {
-        
-    });
+        // Das Sodium Schlüsselpaar wird aus dem Seed erstellt
+        var k = sodium.crypto_sign_seed_keypair(plainSeed);
 
-    // Es wird eine Verbindung zum 2ten Node aufgebaut
-    r.addPeerClientConnection("ws://127.0.0.1:8080", [], () => {
-        // Die Route wird im Netzwerk gesucht
-        setTimeout(() => {
-            r.initAddressRoute(destpubk, (res) => {
-                if(!res) {
-                    console.log('No route found');
-                    return;
-                }
+        // Die Einstellungen werden erzeugt
+        const configs = { key_height:1 };
 
-                const sock = crypto.createHash('sha256').update('d').digest('hex');
-                const testSocket = r.createNewLocalSocket(sock, (error, sockObj) => {
+        // Das Nodeobjekt wird erzeugt
+        Node(sodium, k, [], plainSeed, configs, (noder) => {
+            // Die Primäre Node Adresse wird angezeigt
+            console.log(Buffer.from(k.publicKey).toString('hex'))
 
-                    sockObj.onRecived((data, source, sport) => {
-                        console.log(data, 'from:', source, sport);
-                    });
+            // Es wird versucht eine Verbindung mit dem Peer herzustellen
+            noder.addPeerClientConnection("ws://127.0.0.1:8089", [], () => {
+                
+            });
 
-                    sockObj.write('hallo welt', "4d1363e238850ff3802e6ade30cc91cf8053769536a6ace6b41f7c0143c2a5fc", sock, (r) => {
+            // Es wird eine Verbindung zum 2ten Node aufgebaut
+            noder.addPeerClientConnection("ws://127.0.0.1:8080", [], () => {
+                // Die Route wird im Netzwerk gesucht
+                setTimeout(() => {
+                    var destpubk = '4d1363e238850ff3802e6ade30cc91cf8053769536a6ace6b41f7c0143c2a5fc';
+                    noder.initAddressRoute(destpubk, (res) => {
+                        if(!res) {
+                            console.log('No route found');
+                            return;
+                        }
 
-                    })
-                });
-            }, 2);
-        }, 2000);
+                        const sock = crypto.createHash('sha256').update('d').digest('hex');
+                        const testSocket = noder.createNewLocalSocket(sock, (error, sockObj) => {
+
+                            sockObj.onRecived((data, source, sport) => {
+                                console.log(data, 'from:', source, sport);
+                            });
+
+                            sockObj.write('hallo welt', "4d1363e238850ff3802e6ade30cc91cf8053769536a6ace6b41f7c0143c2a5fc", sock, (r) => {
+
+                            })
+                        });
+                    }, 2);
+                }, 2000);
+            });
+        });
     });
 })();
 

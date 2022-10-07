@@ -1,4 +1,4 @@
-const { get_hash_from_dict, generate_ed25519_keypair, verify_digest_sig, sign_digest } = require('./crypto');
+const { get_hash_from_dict, generate_ed25519_keypair, verify_digest_sig, sign_digest, create_deterministic_keypair, convert_pkey_to_addr } = require('./crypto');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { isNodeOnPCLaptopOrEmbeddedLinuxSystem } = require('./utils');
 const { createLocalSocket, SockTypes } = require('./socket');
@@ -23,10 +23,25 @@ const stringIsAValidUrl = (s) => {
 // Das Node Objekt
 const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], privateSeed=null, nodeSettings=null, nodeCallback) => {
     // Speichert alle Nodes ab, welche bei einer neuen oder bei bestehenden ausgehenden Verbindung Informiert werden wollen
-    var _notifyPeerByNewOutPeerConnection = [];
+    let _notifyPeerByNewOutPeerConnection = [];
 
     // Speichert alle Ausgehenden Verbindungsadressen ab
-    var _openOutEndPointConnectionTypes = {};
+    let _openOutEndPointConnectionTypes = {};
+
+    // Speichert die Öffentlichen Schlüssel aller FullRelayNodes ab
+    let _fullRelayNodes = [];
+
+    // Speichert die Öffentlichen Schlüssel aller Verbundenen Nodes ab
+    let _peerPubKeys = [];
+
+    // Speichert alle Offnenen Routing Request vorgänge ab
+    let _openAddressRouteRequestsPack = new Map();
+
+    // Speichert das Primäre Schlüsselpaar ab
+    let _localPrimaryKeyPair = null; 
+
+    // Speichert alle Offenen RAWEndPoints ab
+    const _openRawEndPoints = new Map();
 
     // Speichert alle Verbindungen und ihre Kernfunktionen ab
     const _openConnectionPeers = new Map()
@@ -43,6 +58,9 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
     // Speichert alle Schlüsselpaar ab
     const _localKeyPairs = new Map();
 
+    // Speichert alle Bekannten Routen ab
+    const _rManager = routingManager();
+
     // Gibt alle Crypto Funktionen an
     const CRYPTO_FUNCTIONS = {
         ed25519: {
@@ -52,6 +70,24 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         secp256k1: { },
         nist256p1: { },
     };
+
+    // Die Standardschlüssel werden erzeugt
+    if(nodeSettings !== null) {
+        // Der Masterkey wird erstellt
+        let temp = create_deterministic_keypair(privateSeed, `0/0/MASTER_KEY`);
+        temp.dpkhash = crypto.createHash('sha256').update(crypto.createHash('sha256').update(temp.publicKey).digest()).digest();
+        dprintinfo(10, ['Node Master Address ='], [colors.FgCyan, convert_pkey_to_addr(temp.publicKey)]);
+        _localPrimaryKeyPair = temp;
+
+        // Die weiteren Subkeys werden erstellt
+        let cerelm = 0;
+        while (cerelm != nodeSettings.key_height) {
+            let determenstc = create_deterministic_keypair(privateSeed, `0/0/${cerelm}`);
+            determenstc.dpkhash = crypto.createHash('sha256').update(crypto.createHash('sha256').update(determenstc.publicKey).digest()).digest();
+            _localKeyPairs.set(Buffer.from(determenstc.publicKey).toString('hex'), determenstc);
+            cerelm += 1;
+        }
+    }
 
     // Signiert ein Paket mit dem Lokalen Schlüssel
     const _SIGN_DIGEST_WLSKEY = (digestValue) => {
@@ -67,21 +103,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         // Das Finale Paket wird Signiert
         return Object.assign(prePackage, { pkey:Buffer.from(packageSig.pkey).toString('hex'), sig:Buffer.from(packageSig.sig).toString('hex') });
     };
-
-    // Speichert alle Bekannten Routen ab
-    const _rManager = routingManager();
-
-    // Speichert die Öffentlichen Schlüssel aller FullRelayNodes ab
-    var _fullRelayNodes = [];
-
-    // Speichert die Öffentlichen Schlüssel aller Verbundenen Nodes ab
-    var _peerPubKeys = [];
-
-    // Speichert alle Offnenen Routing Request vorgänge ab
-    var _openAddressRouteRequestsPack = new Map();
-
-    // Speichert alle Offenen RAWEndPoints ab
-    const _openRawEndPoints = new Map();
 
     // Startet den BOOT_NODE_REQUEST
     const _START_BOOT_NODE_PEER_REQUEST = (connObj) => {
@@ -183,15 +204,27 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         _TRANSMIT_PEER_ENDPOINTS(connObj);
     };
 
-    // Wird verwendet um alle Lokalen PublicKeys auszugeben
-    const _GET_ALL_LOCAL_PUBLIC_KEYS = () => {
-        let reitem = [];
-        for(const otem of _localKeyPairs.keys()) reitem.push(`${otem}`);
-        return reitem;
+    // Gibt ein Schlüsselpaar zurück, sofern es sich um einen Lokalen Schlüssel handelt
+    const _GET_KEYPAIR_THEN_PUBKEY_KNWON = (pubKey) => {
+        if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === pubKey) return localPrivateKeyPair;
+        if(_localPrimaryKeyPair !== null) {
+            if(Buffer.from(_localPrimaryKeyPair.publicKey).toString('hex') === pubKey) return _localPrimaryKeyPair;
+        }
+
+        // Es wird geprüft ob der Eintrag vorhanden ist
+        const reelm = _localKeyPairs.get(pubKey);
+        if(reelm === undefined) return false;
+        return reelm;
+    };
+
+    // Gibt ein Schlüsselpaar zurück, sofern es sich um einen Lokalen Schlüssel handelt
+    const _GET_KEYPAIR_THEN_PUBKEYH_KNWON = (pubKeyHash) => {
+        if(crypto.createHash('sha256').update(crypto.createHash('sha256').update(Buffer.from(localPrivateKeyPair.publicKey)).digest()).digest('hex') === pubKeyHash) return localPrivateKeyPair;
+        return null;
     };
 
     // Wird verwendet um einen Privaten Schlüssel auf Basis des Masterkeys zu erstellen
-    const _GENERATE_KEYPAIR_FROM_MKEY = () => {
+    const _GENERATE_KEYPAIR_FROM_MKEY = (safe=true) => {
 
     };
 
@@ -475,7 +508,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
     };
 
     // Verarbeitet Pakete welche für den Aktuellen Node bestimmt sind
-    const _ENTER_LOCAL_LAYER2_PACKAGE = (packageFrame, connObj, callback) => {
+    const _ENTER_LOCAL_LAYER2_PACKAGE = (packageFrame, connObj, retrivedKeyPair, callback) => {
         // Der Paketinhalt wird entschlüsselt
         const decryptedPackage = packageFrame.body.ebody;
 
@@ -485,7 +518,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         // Aus der Empfänger Adresse sowie der Absender Adresse wird ein Hash erstellt
         const endPointHash = crypto.createHash('sha256')
         .update(Buffer.from(packageFrame.source, 'hex'))
-        .update(Buffer.from(localPrivateKeyPair.publicKey))
+        .update(Buffer.from(retrivedKeyPair.publicKey))
         .digest('hex');
 
         // Es wird geprüft ob es sich um ein Ping Paket handelt
@@ -502,7 +535,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
             // Das Frame wird Signiert
             const signatedFrame = _SIGN_FRAME({
                 crypto_algo:'ed25519_salsa20_poly1305',
-                source:Buffer.from(localPrivateKeyPair.publicKey).toString('hex'),
+                source:Buffer.from(retrivedKeyPair.publicKey).toString('hex'),
                 destination:packageFrame.source,
                 body:{
                     nonce:randomValue.toString('base64'),
@@ -586,8 +619,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         dprintok(10, ['Package'], [colors.FgRed, get_hash_from_dict(package.frame).toString('base64')], ['recived over'], [colors.FgMagenta, connObj.sessionId()], ['from ', colors.FgYellow, package.frame.source]);
 
         // Es wird geprüft ob es sich bei dem Empfänger um eine Lokale Adresse handelt, wenn nicht wird das Paket an den Routing Manager übergeben
-        console.log(_GET_ALL_LOCAL_PUBLIC_KEYS())
-        if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === package.frame.destination) {
+        const fKeyPair = _GET_KEYPAIR_THEN_PUBKEY_KNWON(package.frame.destination);
+        if(fKeyPair !== null && fKeyPair !== false) {
             // Es wird geprüft ob es für die Quelle eine Route gibt
             _rManager.hasRoutes(package.frame.source, connObj.sessionId())
             .then(async (r) => {
@@ -598,7 +631,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
                 await _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination, connObj);
 
                 // Das Paket wird Lokal weiter verarbeitet
-                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, (packageState) => {
+                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, fKeyPair, (packageState) => {
 
                 });
             })
@@ -610,13 +643,13 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
     };
 
     // Sendet ein Routing Response an einen Peer
-    const _SEND_ROUTING_RESPONSE = (oneTimeAddressRequest, foundAddress, timeout, connObj, procId, callback) => {
+    const _SEND_ROUTING_RESPONSE = (oneTimeAddressRequest, foundAddress, timeout, connObj, procId, retrLocalKeyPair, callback) => {
         // Es wird ein OpenRouteResponseSessionPackage gebaut
         const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:consensus.version, orn:oneTimeAddressRequest, addr:foundAddress, timeout:timeout };
 
         // Aus dem OneTime Value und der Adresse wird ein Hash erstellt
         const decodedProcId = Buffer.from(procId, 'hex');
-        const addrSig = sign_digest(decodedProcId, localPrivateKeyPair.privateKey);
+        const addrSig = sign_digest(decodedProcId, retrLocalKeyPair.privateKey);
 
         // Das Finale Paket wird gebaut
         const finalPackage = Object.assign(openRouteSessionPackage, { addrsig:Buffer.from(addrSig).toString('hex') });
@@ -677,10 +710,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
             }
 
             // Es wird geprüft ob es sich bei der gesuchten Adresse um die Adresse des Aktuellen Nodes handelt, wenn nicht wird eine Anfrage an das Netzwerk gestellt sofern Peers vorhanden sind
-            const plainBytes = Buffer.from(localPrivateKeyPair.publicKey);
-            const firstHash = crypto.createHash('sha256').update(plainBytes).digest();
-            const doubleHash = crypto.createHash('sha256').update(firstHash).digest('hex');
-            if(doubleHash === package.addrh) {
+            const retivedKeyPair = _GET_KEYPAIR_THEN_PUBKEYH_KNWON(package.addrh);
+            if(retivedKeyPair !== null) {
                 // Debug Print
                 dprintok(10, ['A routing request was received through session'], [colors.FgMagenta, connObj.sessionId()], ['with process id'], [colors.FgCyan, basedReqProcId]);
 
@@ -726,7 +757,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
                     var newTTL = newTime - preTTL;
 
                     // Das Antwortpaket wird an den Aktuellen Peer zurückgesendet
-                    _SEND_ROUTING_RESPONSE(package.orn, plainBytes.toString('hex'), newTTL, nconnobj, reqProcId, (r) => {
+                    _SEND_ROUTING_RESPONSE(package.orn, Buffer.from(retivedKeyPair.publicKey).toString('hex'), newTTL, nconnobj, reqProcId, retivedKeyPair, (r) => {
                         // Es wird Signalisiert dass das Paket an den Peer gesendet wurde
                         const tempRObj = _openAddressRouteRequestsPack.get(reqProcId);
                         if(tempRObj !== undefined) {
@@ -773,7 +804,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
                 var newTTL = toutTime - preTTL;
 
                 // Das Antwortpaket wird an den Aktuellen Peer zurückgesendet
-                _SEND_ROUTING_RESPONSE(package.orn, plainBytes.toString('hex'), newTTL, connObj, reqProcId, (r) => {
+                _SEND_ROUTING_RESPONSE(package.orn, Buffer.from(retivedKeyPair.publicKey).toString('hex'), newTTL, connObj, reqProcId, retivedKeyPair, (r) => {
                     // Es wird Signalisiert dass das Paket an den Peer gesendet wurde
                     const tempRObj = _openAddressRouteRequestsPack.get(reqProcId);
                     if(tempRObj !== undefined) {
@@ -1200,7 +1231,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
             const doubleHash = crypto.createHash('sha256').update(firstHash).digest('hex');
 
             // Es wird eine Zufällige ID für das Paket erzuegt
-            const randKeyPair = generate_ed25519_keypair();
             const randSessionId = crypto.randomBytes(32).toString('hex');
 
             // Die VorgangsID wird erzeugt (Die VorgangsID besteht aus einem SHA256 Hash, welcher sich aus der RandomID sowie dem Addresshahs zusammensetzt)
@@ -1468,9 +1498,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         getAddressRawEndPoint:getAddressRawEndPoint,
         addPeerClientConnection:addPeerClientConnection,
     };
-
-    // Die Standardschlüssel werden erzeugt
-
 
     // Das Objekt wird zurückgegben
     if(nodeCallback !== undefined && nodeCallback !== null) { nodeCallback(_OBJ_FUNCTIONS); }

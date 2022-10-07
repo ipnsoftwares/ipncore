@@ -1,8 +1,8 @@
 const { sha256 } = require('@noble/hashes/sha256');
 const { binary_to_base58 } = require('base58-js');
-const { hmac } = require('@noble/hashes/hmac');
 const { hkdf } = require('@noble/hashes/hkdf');
 const _sodium = require('libsodium-wrappers');
+const { bech32 } = require('bech32');
 const crypto = require('crypto');
 const { SHA3 } = require('sha3');
 const cbor = require('cbor');
@@ -131,6 +131,12 @@ function create_deterministic_keypair(masterSeed, path) {
     return keyPair;
 };
 
+// Wandelt einen PublicKey in eine Adresse um
+function convert_pkey_to_addr(publicKey) {
+    let wordedPubKey = bech32.toWords(Buffer.from(publicKey));
+    return bech32.encode('ipn', wordedPubKey);
+};
+
 
 // Die Funktionen werden exportiert
 module.exports = {
@@ -141,6 +147,7 @@ module.exports = {
     generate_ed25519_keypair:generate_ed25519_keypair,
     compute_shared_secret:compute_shared_secret,
     verify_digest_sig:verify_digest_sig,
+    convert_pkey_to_addr:convert_pkey_to_addr,
     sign_digest:sign_digest,
     decrypt_data:decrypt_data,
     encrypt_data:encrypt_data,
