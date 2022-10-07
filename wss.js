@@ -680,7 +680,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 // Baut eine ausgehende Verbindung auf
 const wsConnectTo = (socketKeyPair, localeNodeObject, serverUrl, sfunctions=[], accepted_functions=['boot_node'], callback=null, connectionClosedCallback=null) => {
     // Das Websocket Objekt wird vorbereitet
-    const ws = new WebSocket(serverUrl, ['ABC']);
+    const ws = new WebSocket(serverUrl, Buffer.from(cbor.encode({ "m":"newc" })).toString('base64url'));
 
     // Speichert das Inited Objekt ab
     var _initedObject = null;
@@ -699,7 +699,7 @@ const wsConnectTo = (socketKeyPair, localeNodeObject, serverUrl, sfunctions=[], 
 };
 
 // Erstellt einen neuen Lokalen Server
-const wsServer = (socketKeyPair, localeNodeObject, localPort, localIp, sslcert=null, sfunctions=[]) => {
+const wsServer = (socketKeyPair, localeNodeObject, localPort, localIp, sfunctions=[]) => {
     // Es wird ein ID für deas Serverobjekt erzeugt
     const objId = v4();
 
@@ -719,19 +719,41 @@ const wsServer = (socketKeyPair, localeNodeObject, localPort, localIp, sslcert=n
         // Es wird geprüft ob der Client einen Vorgangsheader angegeben hat
         if(req.headers.hasOwnProperty('sec-websocket-protocol') === true) {
             // Es wird geprüft ob es sich um einen gültigen Vorgangsheader handelt
-            const sockWebsockProt = req.headers['sec-websocket-protocol'].split(',');
+            const sockWebsockProt = req.headers['sec-websocket-protocol'];
 
-            // Es wird geprüft ob es sich um gültige Angaben handelt
-            for(const otem of sockWebsockProt) {
+            // Es wird geprüft ob mehr als ein eintrag vorhanden ist
+            const splitedValues = sockWebsockProt.split(',');
+            if(splitedValues.length > 1) { console.log('INVALID_PACKAGE'); ws.close(); return; }
 
-            };
+            // Es wird versucht den ersten Eintrag auszulesen
+            const firstDecodedItem = cbor.decode(Buffer.from(splitedValues[0], 'base64url'));
+
+            // Es wird geprüft ob ein Modus angegeben wurde
+            if(firstDecodedItem.m === undefined) { console.log('INVALID_PACKAGE'); ws.close(); return; }
+
+            // Es wird geprüft ob es sich um einen gültigen Modus handelt
+            if(firstDecodedItem.m === 'newc') {
+                // Es wird geprüft ob die wieviele Angabe in dem Objekt vorhanden sind
+                if(Object.keys(firstDecodedItem).length !== 1) { console.log('INVALID_PACKAGE'); ws.close(); return; }
+
+                // Debug
+                dprintok(10, ['Accepted new incoming websocket connection from'], [colors.FgMagenta, req.socket.remoteAddress]);
+
+                // Die Verbindung wird erstellt
+                wsConnection(socketKeyPair, localeNodeObject, ws, newUrlAddress, true, sfunctions);
+            }
+            else {
+                console.log('INVALID_PACKAGE');
+                ws.close();
+            }
         }
+        else {
+            // Debug
+            dprintok(10, ['Accepted new incoming websocket connection from'], [colors.FgMagenta, req.socket.remoteAddress]);
 
-        // Debug
-        dprintok(10, ['Accepted new incoming websocket connection from'], [colors.FgMagenta, req.socket.remoteAddress]);
-
-        // Die Verbindung wird erstellt
-        wsConnection(socketKeyPair, localeNodeObject, ws, newUrlAddress, true, sfunctions);
+            // Die Verbindung wird erstellt
+            wsConnection(socketKeyPair, localeNodeObject, ws, newUrlAddress, true, sfunctions);
+        }
     });
 
     // Gibt das Serverobjekt zurück

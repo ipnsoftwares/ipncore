@@ -67,18 +67,22 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
   - [ ] [i2p](https://en.wikipedia.org/wiki/I2P)
 
 ## 😶 **Third Party Libraries**
-- [base58-js (^1.0.4)](https://www.npmjs.com/package/base58-js)
-- [bech32 (^2.0.0)](https://github.com/bitcoinjs/bech32)
-- [cobr (^8.1.0)](https://www.npmjs.com/package/cbor)
-- [figlet (^1.5.2)](https://www.npmjs.com/package/figlet)
-- [ip6addr (^0.2.5)](https://www.npmjs.com/package/ip6addr)
-- [js-sha3 (^0.8.0)](https://www.npmjs.com/package/js-sha3)
-- [moment (^2.29.4)](https://www.npmjs.com/package/moment)
-- [ws (^8.8.1)](https://www.npmjs.com/package/ws)
-- [yargs (^17.5.1)](https://www.npmjs.com/package/yargs)
-- [rfc-3548-b32 (^0.0.2)](https://www.npmjs.com/package/rfc-3548-b32)
-- [rfc-4122 (^8.3.2)](https://www.npmjs.com/package/uuid)
-- [libsodium-wrappers (^0.7.10)](https://www.npmjs.com/package/libsodium-wrappers)
+- @noble/hashes = 1.1.3
+- base58-js = 1.0.4
+- bech32 = 2.0.0
+- cbor = 8.1.0
+- figlet = 1.5.2
+- ip-address-validator = 1.0.7
+- ip6addr = 0.2.5
+- ipaddr.js = 2.0.1
+- js-sha3 = 0.8.0
+- libsodium-wrappers = 0.7.10
+- moment = 2.29.4
+- rfc-3548-b32 = 0.0.2
+- sha3 = 2.1.4
+- uuid = 8.3.2
+- ws = 8.8.1
+- yargs = 17.5.1
 
 ## ⚖️ **License - Much license**
 IPN Core is released under the terms of the MIT license. See

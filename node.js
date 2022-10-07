@@ -1,4 +1,4 @@
-const { get_hash_from_dict, generate_ed25519_keypair } = require('./crypto');
+const { get_hash_from_dict, generate_ed25519_keypair, verify_digest_sig, sign_digest } = require('./crypto');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { isNodeOnPCLaptopOrEmbeddedLinuxSystem } = require('./utils');
 const { createLocalSocket, SockTypes } = require('./socket');
@@ -21,7 +21,7 @@ const stringIsAValidUrl = (s) => {
 
 
 // Das Node Objekt
-const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], privateSeed=null) => {
+const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], privateSeed=null, nodeSettings=null, nodeCallback) => {
     // Speichert alle Nodes ab, welche bei einer neuen oder bei bestehenden ausgehenden Verbindung Informiert werden wollen
     var _notifyPeerByNewOutPeerConnection = [];
 
@@ -82,8 +82,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
 
     // Speichert alle Offenen RAWEndPoints ab
     const _openRawEndPoints = new Map();
-
-    // Die Schlüsselpaare für diesen Node werden erzeugt
 
     // Startet den BOOT_NODE_REQUEST
     const _START_BOOT_NODE_PEER_REQUEST = (connObj) => {
@@ -420,8 +418,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         catch(e) { console.log(e); return false; }
 
         // Die Signatur wird geprüft
-        delete clonedObj.sig, clonedObj.pkey;
-        if(CRYPTO_FUNCTIONS.ed25519.verify_sig(decodedSignature, get_hash_from_dict(clonedObj), decodedPublicKey)) return false;
+        delete clonedObj.ssig, clonedObj.pkey;
+        if(verify_digest_sig(get_hash_from_dict(clonedObj), decodedSignature, decodedPublicKey) === false) return false;
 
         // Es wird geprüft ob die Signatur korrekt ist
         return true;
@@ -618,7 +616,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
 
         // Aus dem OneTime Value und der Adresse wird ein Hash erstellt
         const decodedProcId = Buffer.from(procId, 'hex');
-        const addrSig = CRYPTO_FUNCTIONS.ed25519.sign(decodedProcId, localPrivateKeyPair.privateKey);
+        const addrSig = sign_digest(decodedProcId, localPrivateKeyPair.privateKey);
 
         // Das Finale Paket wird gebaut
         const finalPackage = Object.assign(openRouteSessionPackage, { addrsig:Buffer.from(addrSig).toString('hex') });
@@ -982,7 +980,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
             const finalProcId = crypto.createHash('sha256').update(package.orn).update(doubleHash).digest('hex');
 
             // Es wird geprüft ob die Signatur korrekt ist
-            if(CRYPTO_FUNCTIONS.ed25519.verify_sig(Buffer.from(package.addrsig, 'hex'), Buffer.from(finalProcId, 'hex'), Buffer.from(package.addr, 'hex')) === false) {
+            if(verify_digest_sig(Buffer.from(finalProcId, 'hex'), Buffer.from(package.addrsig, 'hex'), Buffer.from(package.addr, 'hex')) === false) {
                 console.log('INVALID_ADDRESS_SIGNATURE_PACKAGE_DROPED', package);
                 return;
             }
@@ -1138,7 +1136,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
     // Wir verwendet um einen Websocket Server zu erstellen (Ip / Tor)
     const addNewWSServer = (localPort, localIp=null, isTor=false) => {
         // Erzeugt ein neues Websocket Server objekt
-        const serverObj = wsServer(localPrivateKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, null, localNodeFunctions);
+        const serverObj = wsServer(localPrivateKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, localNodeFunctions);
 
         // Das Serverobjekt wird abgespeichert
         _serverSockets.set(serverObj._id, serverObj);
@@ -1461,8 +1459,8 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         _openSockets.set(localPort, newEntry);
     };
 
-    // Das Objekt wird zurückgegben
-    return {
+    // Wird als Objekt Funktionen verwendet
+    const _OBJ_FUNCTIONS = {
         apiFunctions:_API_FUNCTIONS,
         addNewWSServer:addNewWSServer,
         initAddressRoute:initAddressRoute,
@@ -1470,6 +1468,13 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
         getAddressRawEndPoint:getAddressRawEndPoint,
         addPeerClientConnection:addPeerClientConnection,
     };
+
+    // Die Standardschlüssel werden erzeugt
+
+
+    // Das Objekt wird zurückgegben
+    if(nodeCallback !== undefined && nodeCallback !== null) { nodeCallback(_OBJ_FUNCTIONS); }
+    return _OBJ_FUNCTIONS
 }
 
 // Die Module werden Exportiert
