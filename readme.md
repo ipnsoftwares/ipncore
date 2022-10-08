@@ -64,7 +64,7 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
   - [ ] [TOR](https://en.wikipedia.org/wiki/Tor_(network))
   - [ ] [i2p](https://en.wikipedia.org/wiki/I2P)
 
-## 😶 **Third Party Libraries**
+## 😶 **Dependencies**
 - @noble/hashes = 1.1.3
 - base58-js = 1.0.4
 - bech32 = 2.0.0

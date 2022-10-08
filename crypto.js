@@ -137,6 +137,13 @@ function convert_pkey_to_addr(publicKey) {
     return bech32.encode('ipn', wordedPubKey);
 };
 
+// Wandelt eine Adresse in einen PublicKey um
+function convert_addr_to_pkey(addressString) {
+    let decoded = bech32.decode(addressString);
+    let unworded = bech32.fromWords(decoded.words);
+    return Buffer.from(unworded);
+};
+
 
 // Die Funktionen werden exportiert
 module.exports = {
@@ -148,6 +155,7 @@ module.exports = {
     compute_shared_secret:compute_shared_secret,
     verify_digest_sig:verify_digest_sig,
     convert_pkey_to_addr:convert_pkey_to_addr,
+    convert_addr_to_pkey:convert_addr_to_pkey,
     sign_digest:sign_digest,
     decrypt_data:decrypt_data,
     encrypt_data:encrypt_data,

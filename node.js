@@ -21,7 +21,7 @@ const stringIsAValidUrl = (s) => {
 
 
 // Das Node Objekt
-const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], privateSeed=null, nodeSettings=null, nodeCallback) => {
+const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSettings=null, nodeCallback) => {
     // Speichert alle Nodes ab, welche bei einer neuen oder bei bestehenden ausgehenden Verbindung Informiert werden wollen
     let _notifyPeerByNewOutPeerConnection = [];
 
@@ -191,7 +191,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
 
     // Gibt ein Schlüsselpaar zurück, sofern es sich um einen Lokalen Schlüssel handelt
     const _GET_KEYPAIR_THEN_PUBKEY_KNWON = (pubKey) => {
-        if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === pubKey) return localPrivateKeyPair;
+        // Es wird geprüft ob es sich um den Primären Schlüssel handelt
         if(_localPrimaryKeyPair !== null) {
             if(Buffer.from(_localPrimaryKeyPair.publicKey).toString('hex') === pubKey) return _localPrimaryKeyPair;
         }
@@ -204,7 +204,20 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
 
     // Gibt ein Schlüsselpaar zurück, sofern es sich um einen Lokalen Schlüssel handelt
     const _GET_KEYPAIR_THEN_PUBKEYH_KNWON = (pubKeyHash) => {
-        if(crypto.createHash('sha256').update(crypto.createHash('sha256').update(Buffer.from(localPrivateKeyPair.publicKey)).digest()).digest('hex') === pubKeyHash) return localPrivateKeyPair;
+        // Es wird geprüft ob es sich um den Primären Schlüssel handelt
+        if(_localPrimaryKeyPair !== null) {
+            if(Buffer.from(_localPrimaryKeyPair.dpkhash).toString('hex') === pubKeyHash) return _localPrimaryKeyPair;
+        }
+
+        // Es werden alle Schlüsselpaar durchsucht um zu prüfen ob es einen Identischen Wert gibt
+        for(const otem of _localKeyPairs.keys()) {
+            const sockKPair = _localKeyPairs.get(otem);
+
+            // Es wird geprüft ob es sich um einen String handelt
+            if(sockKPair.dpkhash.toString('hex') === pubKeyHash) return sockKPair;
+        }
+
+        // Es wurde kein Ergebniss gefunden
         return null;
     };
 
@@ -453,7 +466,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
     };
 
     // Nimmt Pakete für Lokale Sockets entgegen
-    const _ENTER_LOCAL_SOCKET_PACKAGES = (layertpackage, connObj, sdeph, callback) => {
+    const _ENTER_LOCAL_SOCKET_PACKAGES = (layertpackage, connObj, sdeph, retrivedKeyPair, callback) => {
         // Es wird geprüft ob es einen Offenen Lokalen Port gibt, welcher auf diese Verbindung wartet
         const retrivedSocketEp = _openSockets.get(layertpackage.body.ebody.body.dport);
         if(retrivedSocketEp !== undefined) {
@@ -550,9 +563,6 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
                     callback(r);
                 }, 1);
             }
-
-            // Die Aufgabe wurde erfolgreich fertigestellt
-            return;
         }
         // Das Paket wird weiterverabeitet
         else {
@@ -578,7 +588,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
             if(verifyLayerThreePackage(decryptedPackage) === false) { callback(false); return; }
 
             // Das Paket wird weiterverabeitet
-            _ENTER_LOCAL_SOCKET_PACKAGES(packageFrame, connObj, endPointHash, callback);
+            _ENTER_LOCAL_SOCKET_PACKAGES(packageFrame, connObj, endPointHash, retrivedKeyPair, callback);
         }
     };
 
@@ -853,7 +863,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
 
                     // Es wird geprüft ob Mindestens ein Peer gefunden wurde
                     if(hasFoundPeerFromRecive !== true) {
-                        console.log('PACKAGE_DROPED_THIS_NODE_HAS_NOT_REQUESTED', finalProcId);
+                        console.log('PACKAGE_DROPED_THIS_NODE_HAS_NOT_REQUESTED', reqProcId);
                         return;
                     }
 
@@ -1148,7 +1158,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
     // Wir verwendet um einen Websocket Server zu erstellen (Ip / Tor)
     const addNewWSServer = (localPort, localIp=null, isTor=false, privKeyPath=null) => {
         // Erzeugt ein neues Websocket Server objekt
-        const serverObj = wsServer(localPrivateKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, localNodeFunctions);
+        const serverObj = wsServer(_localPrimaryKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, localNodeFunctions);
 
         // Das Serverobjekt wird abgespeichert
         _serverSockets.set(serverObj._id, serverObj);
@@ -1186,14 +1196,14 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
             };
 
             // Die Verbindung wird hergestellt
-            wsConnectTo(localPrivateKeyPair, _SOCKET_FUNCTIONS, readedURL.toString(), localNodeFunctions, accepted_functions, _FNC_OPEN_CONNECTION, _FNC_CLOSED_CONNECTION);
+            wsConnectTo(_localPrimaryKeyPair, _SOCKET_FUNCTIONS, readedURL.toString(), localNodeFunctions, accepted_functions, _FNC_OPEN_CONNECTION, _FNC_CLOSED_CONNECTION);
         }
     };
 
     // Wird verwendet um eine Adressroute abzufagen
     const initAddressRoute = (publicKey, callback=null, maxRecivingResponses=1, timeout=consensus.ttl_for_routing_request) => {
         // Es wird geprüft ob es sich um die Lokale Adresse handelt, wenn ja wird der Vorgang abgerbrochen!
-        if(Buffer.from(localPrivateKeyPair.publicKey).toString('hex') === publicKey) {
+        if(Buffer.from(_localPrimaryKeyPair.publicKey).toString('hex') === publicKey) {
             callback('aborted_is_local_address');
             return;
         }
@@ -1219,7 +1229,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
             const finalProcIdBased = Buffer.from(finalProcId, 'hex').toString('base64');
 
             // Log Entry
-            dprintok(10, ['The address'], [colors.FgMagenta, publicKey], ['is searched in the network.'])
+            dprintok(10, ['The address'], [colors.FgMagenta, convert_pkey_to_addr(Buffer.from(publicKey, 'hex'))], ['is searched in the network.'])
 
             // Speichert ab wieviele Response Insgesamt Empfangen wurden
             let recivedResponses = 0;
@@ -1408,7 +1418,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
             // Aus der Empfänger Adresse sowie der Absender Adresse wird ein Hash erstellt
             const endPointHash = crypto.createHash('sha256')
             .update(Buffer.from(destPublicKey, 'hex'))
-            .update(Buffer.from(localPrivateKeyPair.publicKey))
+            .update(Buffer.from(_localPrimaryKeyPair.publicKey))
             .digest('hex');
 
             // Es wird geprüft ob es bereits einen Offenen RAW Address EndPoint gibt
@@ -1421,12 +1431,12 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
             // Es wird gepüft ob es eine Route für diese Adresse gibt
             const routeEP = await _rManager.getAddressRouteEP(destPublicKey);
             if(routeEP === false) {
-                callback('NO_ADDRESS_ROUTE');
+                callback(`NO_ROUTE:${convert_pkey_to_addr(Buffer.from(destPublicKey, 'hex'))} ${destPublicKey}`);
                 return;
             }
 
             // Das AddressRawEndPoint Objekt wird erstellt
-            const ipeResult = await addressRawEndPoint(_RAW_FUNCTIONS, routeEP, localPrivateKeyPair, destPublicKey, CRYPTO_FUNCTIONS, addressRawEpConfig, (error, arep) => {
+            const ipeResult = await addressRawEndPoint(_RAW_FUNCTIONS, routeEP, _localPrimaryKeyPair, destPublicKey, CRYPTO_FUNCTIONS, addressRawEpConfig, (error, arep) => {
                 // Es wird geprüft ob ein Fehler aufgetreten ist
                 if(error !== undefined && error !== null) {
                     _openRawEndPoints.delete(endPointHash);
@@ -1458,7 +1468,7 @@ const Node = (sodium, localPrivateKeyPair, localNodeFunctions=['boot_node'], pri
 
         // Der Neue Socket wird erzeugt
         const newEntry = new Map();
-        newEntry.set('*', createLocalSocket(modfifRAWFunctions, localPrivateKeyPair, sockType, localPort, (error, sockobj) => {
+        newEntry.set('*', createLocalSocket(modfifRAWFunctions, _localPrimaryKeyPair, sockType, localPort, (error, sockobj) => {
             // Es wird geprüft ob ein Fehler aufgetreten ist
             if(error !== null) { callback(error); return; }
 
