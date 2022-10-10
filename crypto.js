@@ -111,6 +111,30 @@ function compute_shared_secret(privKey, pubKey, callback) {
     callback(null, Buffer.from(computedDhSecrtKey));
 };
 
+// Verschlüsselt ein Paket / Frame Asymmetrisch
+function encrypt_package_asymmetric(privKey, pubKey, package, callback) {
+    // Der DH-Schlüssel wird erzeugt
+    compute_shared_secret(privKey, pubKey, (error, key) => {
+        // Es wird geprüft ob ein Fehler aufgetreten ist
+        if(error !== null) { callback(error); return; }
+
+        // Das Paket wird mittels CBOR in Bytes umgewandelt
+        const encodedPackage = cbor.encode(package);
+
+        // Der Datensatz wird Verschlüsselt und zurückgegeben
+        encrypt_data(key, encodedPackage, callback);
+    });
+};
+
+// Verschlüsselt ein Paket / Frame Symetrich
+function encrypt_package_symmetric(sharedSeecret, package, callback) {
+    // Das Paket wird mittels CBOR in Bytes umgewandelt
+    const encodedPackage = cbor.encode(package);
+
+    // Der Datensatz wird Verschlüsselt und zurückgegeben
+    encrypt_data(sharedSeecret, encodedPackage, callback);
+};
+
 // Wird verwendet um ein neues Schlüsselpaar zu erstellen
 function generate_ed25519_keypair() {
     return _crypto_sodium_modul.crypto_sign_keypair();
@@ -147,16 +171,18 @@ function convert_addr_to_pkey(addressString) {
 
 // Die Funktionen werden exportiert
 module.exports = {
-    init_crypto:init_crypto,
-    get_hash_from_dict:get_hash_from_dict,
     create_deterministic_keypair:create_deterministic_keypair,
+    encrypt_package_asymmetric:encrypt_package_asymmetric,
+    encrypt_package_symmetric:encrypt_package_symmetric,
     create_random_session_id:create_random_session_id,
     generate_ed25519_keypair:generate_ed25519_keypair,
     compute_shared_secret:compute_shared_secret,
-    verify_digest_sig:verify_digest_sig,
     convert_pkey_to_addr:convert_pkey_to_addr,
     convert_addr_to_pkey:convert_addr_to_pkey,
-    sign_digest:sign_digest,
+    get_hash_from_dict:get_hash_from_dict,
+    verify_digest_sig:verify_digest_sig,
     decrypt_data:decrypt_data,
     encrypt_data:encrypt_data,
+    sign_digest:sign_digest,
+    init_crypto:init_crypto,
 }

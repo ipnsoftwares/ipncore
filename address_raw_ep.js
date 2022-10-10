@@ -1,7 +1,8 @@
+const { get_hash_from_dict, compute_shared_secret, encrypt_package_symmetric } = require('./crypto');
 const { dprinterror, dprintok, colors, dprintwarning, dprintinfo } = require('./debug');
-const { get_hash_from_dict } = require('./crypto');
 const consensus = require('./consensus');
 const crypto = require('crypto');
+const cbor = require('cbor');
 
 
 // Gibt alle möglichen Statuse an
@@ -34,6 +35,9 @@ const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, desti
 
     // Speichert ab, wann das letzte Paket versendet wurde
     let lastPackageSendSuccs = null;
+
+    // Speichert den Shared Secret der Verbindung ab
+    let sharedSecret = null;
 
     // Wird verwendet um allen Vorägngen zu Signalisieren dass derzeit keine Routen mehr Verfügbar sind, alle Sockets werden geschlossen
     const _NO_ROUTES_EVENTS = (cb) => {
@@ -97,10 +101,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, desti
     };
 
     // Signiert ein Frame und fügt den Empfänger sowie den Absender hinzu
-    const _COMPLETE_UNSIGNATED_FRAME = (encryptedFrameData, clearFrameData={}) => {
-        // Es wird ein Zufällige Nonce erstellt
-        const randomNocne = crypto.randomBytes(24);
-
+    const _COMPLETE_UNSIGNATED_FRAME = (encryptedFrameData, clearFrameData={}, callback) => {
         // Die Daten zum verschlüssel werden verschlüsselt
         const encryptedData = encryptedFrameData;
 
@@ -109,14 +110,17 @@ const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, desti
             crypto_algo:'ed25519_salsa20_poly1305',
             source:Buffer.from(sourcePrivateKey.publicKey).toString('hex'),
             destination:destinationPublicKey,
-            body:{ nonce:randomNocne.toString('base64'), ebody:encryptedData, pbody:clearFrameData } 
+            body:{
+                ebody:encryptedData,
+                pbody:clearFrameData
+            } 
         };
 
         // Das Paket wird Signiert
         const packageSig = _SIGN_DIGEST_WLSKEY(sourcePrivateKey, get_hash_from_dict(preLayer2Frame));
 
         // Das Finale Paket wird Signiert
-        return { ...preLayer2Frame, ssig:Buffer.from(packageSig.sig).toString('hex') };
+        callback(null, { ...preLayer2Frame, ssig:Buffer.from(packageSig.sig).toString('hex') });
     };
 
     // Wird verwendet um ein nicht Signiertes Frame zu Signieren und abzusenden
@@ -213,8 +217,6 @@ const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, desti
             return;
         }
 
-        // Es wird geprüft ob ein RAW Socket auf dieser Verbindung liegt, wenn ja wird das Paket an den RAW Socket weitergegeben
-
         // Es wird geprüft ob es sich um ein Pong Paket handelt
         if(decryptedBodyData.type === 'pong') {
             if(packageInCallback !== null) { packageInCallback(true); }
@@ -227,11 +229,6 @@ const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, desti
             if(fetchedOpenPingProcess !== undefined) { fetchedOpenPingProcess.callResponse(connObj); }
             else { console.log('PONG_PACKAGE_DROPED'); }
         }
-
-        // Es wird geprüft ob es sich um ein Datagram handelt
-
-        // Es wird geprüft ob es sich um eine Sitzung handelt
-
         else {
             if(packageInCallback !== null) { packageInCallback(false); }
             return;
@@ -245,89 +242,89 @@ const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, desti
 
         // Das Frame wird erstellt
         const baseFrame = { type:'ping', rdata:randomByteValues.toString('base64'), strict:strict };
-        const finallyFrame = _COMPLETE_UNSIGNATED_FRAME(baseFrame);
+        _COMPLETE_UNSIGNATED_FRAME(baseFrame, {}, (error, finallyFrame) => {
+            // Aus dem RandomHash werden 2 hashes erzeugt
+            const frstRandHash = crypto.createHash('sha256').update(randomByteValues).digest();
+            const secRandHash = crypto.createHash('sha256').update(frstRandHash).digest('hex');
 
-        // Aus dem RandomHash werden 2 hashes erzeugt
-        const frstRandHash = crypto.createHash('sha256').update(randomByteValues).digest();
-        const secRandHash = crypto.createHash('sha256').update(frstRandHash).digest('hex');
+            // Speichert den Aktuellen Timer ab, welcher wartet bis die Ablaufzeit abgelaufen ist
+            let _OPEN_WAIT_RESPONSE_TIMER = null;
 
-        // Speichert den Aktuellen Timer ab, welcher wartet bis die Ablaufzeit abgelaufen ist
-        let _OPEN_WAIT_RESPONSE_TIMER = null;
+            // Gibt die Zeit an, wielange es gedauert hat, bis es eine Antwort für den Ping gab
+            let _PING_PACKAGE_SEND_TIME = null;
 
-        // Gibt die Zeit an, wielange es gedauert hat, bis es eine Antwort für den Ping gab
-        let _PING_PACKAGE_SEND_TIME = null;
+            // Speichert die SessionID ab, an welche das Paket übertragen wurde
+            let _SEND_OVER_SESSION_ID = null;
 
-        // Speichert die SessionID ab, an welche das Paket übertragen wurde
-        let _SEND_OVER_SESSION_ID = null;
+            // Wird als Timer ausgeführt, wenn die Zeit abgelaufen ist, der Vorgang wird zerstört
+            const _TIMER_FUNCTION_PROC = () => {
+                if(_openPingProcesses.delete(secRandHash) === true) {
+                    routeEP.signalLossPackage(_SEND_OVER_SESSION_ID)
+                    .then(() => {
+                        callback(false, null, Buffer.from(secRandHash, 'hex').toString('base64'));
+                    })
+                }
+            };
 
-        // Wird als Timer ausgeführt, wenn die Zeit abgelaufen ist, der Vorgang wird zerstört
-        const _TIMER_FUNCTION_PROC = () => {
-            if(_openPingProcesses.delete(secRandHash) === true) {
-                routeEP.signalLossPackage(_SEND_OVER_SESSION_ID)
-                .then(() => {
-                    callback(false, null, Buffer.from(secRandHash, 'hex').toString('base64'));
-                })
-            }
-        };
+            // Wird aufgerufen, wenn eine Antwort für den Ping eingetroffen ist
+            const _RESPONSE = (connObj) => {
+                // Es wird geprüft ob der Vorgang geöffnet ist
+                if(_openPingProcesses.get(secRandHash) === undefined) {
+                    console.log('PONG_PACKAGE_DROPED');
+                    return;
+                }
 
-        // Wird aufgerufen, wenn eine Antwort für den Ping eingetroffen ist
-        const _RESPONSE = (connObj) => {
-            // Es wird geprüft ob der Vorgang geöffnet ist
-            if(_openPingProcesses.get(secRandHash) === undefined) {
-                console.log('PONG_PACKAGE_DROPED');
-                return;
-            }
-
-            // Sofern vorhanden wird der Timer gestoppt
-            if(_OPEN_WAIT_RESPONSE_TIMER !== null) { clearTimeout(_OPEN_WAIT_RESPONSE_TIMER); _OPEN_WAIT_RESPONSE_TIMER = null; }
-
-            // Der Vorgang wird gelöscht
-            _openPingProcesses.delete(secRandHash);
-
-            // Die benötigte Zeit wird ermittelt
-            const pingreqTime = Date.now() - _PING_PACKAGE_SEND_TIME;
-
-            // Dem Cache wird die neue Pingzeit für diese Route mitgeteilt
-            routeEP.avarageInitPingTime(destinationPublicKey, connObj.sessionId(), pingreqTime)
-            .then(() => {
-                callback(true, pingreqTime, Buffer.from(secRandHash, 'hex').toString('base64'));
-            });
-        };
-
-        // Beendet den Ping Vorgang Manuell
-        const _CLOSE = () => {
-            if(_openPingProcesses.delete(secRandHash) === true) {
+                // Sofern vorhanden wird der Timer gestoppt
                 if(_OPEN_WAIT_RESPONSE_TIMER !== null) { clearTimeout(_OPEN_WAIT_RESPONSE_TIMER); _OPEN_WAIT_RESPONSE_TIMER = null; }
-                dprintwarning(10, ['The ping process'], [colors.FgRed, get_hash_from_dict(finallyFrame).toString('base64')], ['was forced to end.']);
-                callback(false, null, Buffer.from(secRandHash, 'hex').toString('base64'));
-            }
-        };
 
-        // Speichert den Ping Vorgang ab
-        _openPingProcesses.set(secRandHash, { callResponse:_RESPONSE, close:_CLOSE });
-
-        // Das Ping Paket wird versendet
-        dprintinfo(10, ['The ping packet'], [colors.FgRed, get_hash_from_dict(baseFrame).toString('base64')], ['is sent']);
-        _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, socketobj, (state, tttl, ptime, sendSessionId) => {
-            // Es wird geprüft ob der Ping Vorgang erfolgreich durchgeführt wurde
-            if(state !== true) {
                 // Der Vorgang wird gelöscht
                 _openPingProcesses.delete(secRandHash);
-                callback(false, state, Buffer.from(secRandHash, 'hex').toString('base64'));
-                return;
-            }
 
-            // Speichert die SessionID ab, an welche das Paket gesendet wurde
-            _SEND_OVER_SESSION_ID = sendSessionId;
+                // Die benötigte Zeit wird ermittelt
+                const pingreqTime = Date.now() - _PING_PACKAGE_SEND_TIME;
 
-            // Speichert die Zeit ab, wann das Paket empfangen wurde
-            _PING_PACKAGE_SEND_TIME = Date.now();
+                // Dem Cache wird die neue Pingzeit für diese Route mitgeteilt
+                routeEP.avarageInitPingTime(destinationPublicKey, connObj.sessionId(), pingreqTime)
+                .then(() => {
+                    callback(true, pingreqTime, Buffer.from(secRandHash, 'hex').toString('base64'));
+                });
+            };
 
-            // Der Timer für diesen Ping wird gestartet
-            _OPEN_WAIT_RESPONSE_TIMER = setTimeout(_TIMER_FUNCTION_PROC, tttl);
+            // Beendet den Ping Vorgang Manuell
+            const _CLOSE = () => {
+                if(_openPingProcesses.delete(secRandHash) === true) {
+                    if(_OPEN_WAIT_RESPONSE_TIMER !== null) { clearTimeout(_OPEN_WAIT_RESPONSE_TIMER); _OPEN_WAIT_RESPONSE_TIMER = null; }
+                    dprintwarning(10, ['The ping process'], [colors.FgRed, get_hash_from_dict(finallyFrame).toString('base64')], ['was forced to end.']);
+                    callback(false, null, Buffer.from(secRandHash, 'hex').toString('base64'));
+                }
+            };
 
-            // Log
-            dprintinfo(10, ['The ping packet'], [colors.FgRed, get_hash_from_dict(baseFrame).toString('base64')], ['sent in'], [colors.FgMagenta, ptime], ['ms, ttl ='], [colors.FgMagenta, tttl]);
+            // Speichert den Ping Vorgang ab
+            _openPingProcesses.set(secRandHash, { callResponse:_RESPONSE, close:_CLOSE });
+
+            // Das Ping Paket wird versendet
+            dprintinfo(10, ['The ping packet'], [colors.FgRed, get_hash_from_dict(baseFrame).toString('base64')], ['is sent']);
+            _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, socketobj, (state, tttl, ptime, sendSessionId) => {
+                // Es wird geprüft ob der Ping Vorgang erfolgreich durchgeführt wurde
+                if(state !== true) {
+                    // Der Vorgang wird gelöscht
+                    _openPingProcesses.delete(secRandHash);
+                    callback(false, state, Buffer.from(secRandHash, 'hex').toString('base64'));
+                    return;
+                }
+
+                // Speichert die SessionID ab, an welche das Paket gesendet wurde
+                _SEND_OVER_SESSION_ID = sendSessionId;
+
+                // Speichert die Zeit ab, wann das Paket empfangen wurde
+                _PING_PACKAGE_SEND_TIME = Date.now();
+
+                // Der Timer für diesen Ping wird gestartet
+                _OPEN_WAIT_RESPONSE_TIMER = setTimeout(_TIMER_FUNCTION_PROC, tttl);
+
+                // Log
+                dprintinfo(10, ['The ping packet'], [colors.FgRed, get_hash_from_dict(baseFrame).toString('base64')], ['sent in'], [colors.FgMagenta, ptime], ['ms, ttl ='], [colors.FgMagenta, tttl]);
+            });
         });
     };
 
@@ -386,10 +383,10 @@ const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, desti
             const layer3Frame = { sport:localport, dport:destport, data:data };
 
             // Das Frame wird erstellt
-            const finallyFrame = _COMPLETE_UNSIGNATED_FRAME({ type:'nxt', body:layer3Frame });
-
-            // Es wird versucht das Paket abzusenden
-            _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, null, pckret);
+            const finallyFrame = _COMPLETE_UNSIGNATED_FRAME({ type:'nxt', body:layer3Frame }, {}, (error, finallyFrame) => {
+                // Es wird versucht das Paket abzusenden
+                _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, null, pckret);
+            });
         };
 
         // Das Objekt wird zurückgegeben
@@ -407,21 +404,30 @@ const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, desti
         }, 
     };
 
-    // Es wird geprüft ob eine Route für die Adresse vorhanden ist
-    routeEP.isUseable().then(async (r) => {
-        // Es wird geprüft ob der Vorgang genutzt werden kann
-        if(r !== true) { rcb('no_routes_avail'); return; }
+    // Der Shared Secret wird erstellt
+    compute_shared_secret(sourcePrivateKey.privateKey, Buffer.from(destinationPublicKey, 'hex'), (error, result) => {
+        // Es wird geprüft ob ein Fehler aufgetreten ist
+        if(error !== null) { rcb(error); return; }
 
-        // Die Routing Sychnronisierung wird durchgeführt
-        await _FETCH_FASTED_ROUTES_PING((froutes) => {
-            // Es wird geprüft ob der Vorgang erfolgreich durchgeführt werden konnte
-            if(froutes !== true) { rcb('no_fast_routes_avail'); return; }
+        // Der Shared Secret wird zwischengespeichert
+        sharedSecret = result;
 
-            // Der Status des Paketes wird auf geöffnet gesetzt
-            objectState = ADR_EP_STATES.OPEN;
+        // Es wird geprüft ob eine Route für die Adresse vorhanden ist
+        routeEP.isUseable().then(async (r) => {
+            // Es wird geprüft ob der Vorgang genutzt werden kann
+            if(r !== true) { rcb('no_routes_avail'); return; }
 
-            // Der Vorgang wurde erfolgreich druchgeführt
-            rcb(null, _BASE_FUNCTIONS);
+            // Die Routing Sychnronisierung wird durchgeführt
+            await _FETCH_FASTED_ROUTES_PING((froutes) => {
+                // Es wird geprüft ob der Vorgang erfolgreich durchgeführt werden konnte
+                if(froutes !== true) { rcb('no_fast_routes_avail'); return; }
+
+                // Der Status des Paketes wird auf geöffnet gesetzt
+                objectState = ADR_EP_STATES.OPEN;
+
+                // Der Vorgang wurde erfolgreich druchgeführt
+                rcb(null, _BASE_FUNCTIONS);
+            });
         });
     });
 

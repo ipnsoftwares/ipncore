@@ -1,10 +1,10 @@
 const os = require('os');
 
 // Gibt die kleins Mögliche Version an
-const smallest_version = 10000000;
+const smallest_version = 221000;
 
 // Speichert die Aktuelle Version ab
-const current_version = 10000000;
+const current_version = 221000;
 
 // Speichert das Aktuelle Netzwerk ab
 const current_network = 'IPN';

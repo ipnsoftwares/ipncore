@@ -513,10 +513,6 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                 return;
             }
 
-            // Das Basis Layer 1 Paket wird geprüft
-
-            // Es wird geprüft ob die Signatur des Paketes korrekt ist
-
             // Es wird geprüft ob ein Pakettyp angegeben wurde
             if(jsonEncodedPackage.hasOwnProperty('type') !== true) {
                 dprinterror(10, ['Invalid packet received in session'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['session will be closed for security reasons.']);

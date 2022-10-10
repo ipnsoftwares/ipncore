@@ -221,16 +221,6 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         return null;
     };
 
-    // Wird verwendet um einen Privaten Schlüssel auf Basis des Masterkeys zu erstellen
-    const _GENERATE_KEYPAIR_FROM_MKEY = (safe=true) => {
-
-    };
-
-    // Erzeugt einen neues Schlüsselpaar, welches nicht gespeichert wird
-    const _GENERATE_RANDOM_KEYPAIR = () => {
-
-    };
-
     // Wird verwendet um einen neue Verbindung zu Registrieren
     const _REGISTER_NEW_CONNECTION = (connObj, pprotFnc, callback) => {
         // Es wird geprüft ob es sich um ein Objekt handelt
@@ -569,7 +559,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             // Es wird versucht den RawEP abzurufen
             const openEP = _openRawEndPoints.get(endPointHash);
 
-            // Es wird geprüft ob es sich um ein Pon Paket handelt, wenn ja wird es direkt weitergegeben
+            // Es wird geprüft ob es sich um ein Pong Paket handelt, wenn ja wird es direkt weitergegeben
             if(decryptedPackage.type === 'pong') {
                 // Es wird geprüft ob der EndPunkt vorhanden ist
                 if(openEP === undefined) { callback(false); return; }
@@ -600,7 +590,6 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         if(!package.frame.hasOwnProperty('source')) { connObj.close(); console.log('AT6TR4'); return; }
         if(!package.frame.hasOwnProperty('ssig')) { connObj.close(); console.log('AT6TR5'); return; }
         if(!package.frame.hasOwnProperty('body')) { connObj.close(); console.log('AT6TR6'); return; }
-        if(!package.frame.body.hasOwnProperty('nonce')) { connObj.close(); console.log('AT6TR7'); return; }
         if(!package.frame.body.hasOwnProperty('pbody')) { connObj.close(); console.log('AT6TR8'); return; }
         if(!package.frame.body.hasOwnProperty('ebody')) { connObj.close(); console.log('AT6TR9'); return; }
 
@@ -638,9 +627,9 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Sendet ein Routing Response an einen Peer
-    const _SEND_ROUTING_RESPONSE = (oneTimeAddressRequest, foundAddress, timeout, connObj, procId, retrLocalKeyPair, callback) => {
+    const _SEND_ROUTING_RESPONSE = (oneTimeAddressRequest, timeout, connObj, procId, retrLocalKeyPair, callback) => {
         // Es wird ein OpenRouteResponseSessionPackage gebaut
-        const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:consensus.version, orn:oneTimeAddressRequest, addr:foundAddress, timeout:timeout };
+        const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:consensus.version, orn:oneTimeAddressRequest, addr:retrLocalKeyPair.publicKey, timeout:timeout };
 
         // Aus dem OneTime Value und der Adresse wird ein Hash erstellt
         const decodedProcId = Buffer.from(procId, 'hex');
@@ -749,7 +738,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                     var newTTL = newTime - preTTL;
 
                     // Das Antwortpaket wird an den Aktuellen Peer zurückgesendet
-                    _SEND_ROUTING_RESPONSE(package.orn, Buffer.from(retivedKeyPair.publicKey).toString('hex'), newTTL, nconnobj, reqProcId, retivedKeyPair, (r) => {
+                    _SEND_ROUTING_RESPONSE(package.orn, newTTL, nconnobj, reqProcId, retivedKeyPair, (r) => {
                         // Es wird Signalisiert dass das Paket an den Peer gesendet wurde
                         const tempRObj = _openAddressRouteRequestsPack.get(reqProcId);
                         if(tempRObj !== undefined) {
@@ -796,7 +785,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                 var newTTL = toutTime - preTTL;
 
                 // Das Antwortpaket wird an den Aktuellen Peer zurückgesendet
-                _SEND_ROUTING_RESPONSE(package.orn, Buffer.from(retivedKeyPair.publicKey).toString('hex'), newTTL, connObj, reqProcId, retivedKeyPair, (r) => {
+                _SEND_ROUTING_RESPONSE(package.orn, newTTL, connObj, reqProcId, retivedKeyPair, (r) => {
                     // Es wird Signalisiert dass das Paket an den Peer gesendet wurde
                     const tempRObj = _openAddressRouteRequestsPack.get(reqProcId);
                     if(tempRObj !== undefined) {
@@ -991,12 +980,11 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
 
             // Es wird geprüft ob die Länge des Addresses Hashes sowie des Einaml Schlüssels korrekt sind
             if(package.addrsig.length !== 128) { connObj.close(); console.log('AT5TZ'); return; }
-            if(package.addr.length !== 64) { connObj.close(); console.log('AT5TZ'); return; }
+            if(package.addr.length !== 32) { connObj.close(); console.log('AT5TZ'); return; }
             if(package.orn.length !== 64) { connObj.close(); console.log('AT6TZ'); return; }
 
             // Es wird ein Doppelter Hash aus der Adresse wird erzeugt
-            const plainBytes = Buffer.from(package.addr, 'hex');
-            const firstHash = crypto.createHash('sha256').update(plainBytes).digest();
+            const firstHash = crypto.createHash('sha256').update(package.addr).digest();
             const doubleHash = crypto.createHash('sha256').update(firstHash).digest('hex');
 
             // Aus der VorgangsID sowie dem Double Hash der Adressen werden mittels Hash zusammengeführt
@@ -1229,7 +1217,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             const finalProcIdBased = Buffer.from(finalProcId, 'hex').toString('base64');
 
             // Log Entry
-            dprintok(10, ['The address'], [colors.FgMagenta, convert_pkey_to_addr(Buffer.from(publicKey, 'hex'))], ['is searched in the network.'])
+            dprintok(10, ['The address'], [colors.FgMagenta, publicKey], ['is searched in the network.'])
 
             // Speichert ab wieviele Response Insgesamt Empfangen wurden
             let recivedResponses = 0;
@@ -1291,7 +1279,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                 procOpened:Date.now(), procClosed:null, operationIsOpen:true, aborted:false, peers:[],
                 retrvPackage:async (package, cEpObj) => {
                     // Es wird geprüft ob die Adresse übereinstimmt
-                    if(firstHash.toString('hex') !== crypto.createHash('sha256').update(Buffer.from(package.addr, 'hex')).digest('hex')) {
+                    if(firstHash.toString('hex') !== crypto.createHash('sha256').update(package.addr).digest('hex')) {
                         console.log('PACKAGE_DROPED_INVALID_SIGANTURE', Buffer.from(finalProcId, 'hex').toString('base64'));
                         return;
                     }
@@ -1356,7 +1344,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                     }
 
                     // Die Route wird für die Aktuelle Verbindung registriert
-                    await _rManager.addRoute(cEpObj.sessionId(), package.addr, Date.now() - firstPackageTime, 60000);
+                    await _rManager.addRoute(cEpObj.sessionId(), Buffer.from(package.addr).toString('hex'), Date.now() - firstPackageTime, 60000);
 
                     // Der Recive Response Counter wird hochgezählt
                     recivedResponses += 1;
@@ -1431,7 +1419,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             // Es wird gepüft ob es eine Route für diese Adresse gibt
             const routeEP = await _rManager.getAddressRouteEP(destPublicKey);
             if(routeEP === false) {
-                callback(`NO_ROUTE:${convert_pkey_to_addr(Buffer.from(destPublicKey, 'hex'))} ${destPublicKey}`);
+                callback('NO_ADDRESS_ROUTE_FOUND');
                 return;
             }
 
