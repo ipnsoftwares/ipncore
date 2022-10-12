@@ -1,3 +1,4 @@
+const { readJsonObjFromBytesSecure } = require('./lpckg');
 const { sha256 } = require('@noble/hashes/sha256');
 const { binary_to_base58 } = require('base58-js');
 const { hkdf } = require('@noble/hashes/hkdf');
@@ -6,7 +7,6 @@ const { bech32 } = require('bech32');
 const crypto = require('crypto');
 const { SHA3 } = require('sha3');
 const cbor = require('cbor');
-
 
 
 // Speichert das Sodium Modell ab
@@ -66,7 +66,7 @@ function decrypt_data(sharedSeecret, chiperText, callback) {
     const readedPackage = cbor.decode(chiperText);
 
     // Es wird versucht die Daten zu entschlüsseln
-    const decrypted = _crypto_sodium_modul.crypto_aead_xchacha20poly1305_ietf_decrypt_detached(null, readedPackage.c, readedPackage.m, null, readedPackage.n, sharedSeecret);
+    const decrypted = Buffer.from(_crypto_sodium_modul.crypto_aead_xchacha20poly1305_ietf_decrypt_detached(null, readedPackage.c, readedPackage.m, null, readedPackage.n, sharedSeecret));
     
     // Die Daten werden zurückgegeben
     callback(null, decrypted);
@@ -112,14 +112,14 @@ function compute_shared_secret(privKey, pubKey, callback) {
 };
 
 // Verschlüsselt ein Paket / Frame Asymmetrisch
-function encrypt_package_asymmetric(privKey, pubKey, package, callback) {
+function encrypt_package_asymmetric(privKey, pubKey, ipnPackage, callback) {
     // Der DH-Schlüssel wird erzeugt
     compute_shared_secret(privKey, pubKey, (error, key) => {
         // Es wird geprüft ob ein Fehler aufgetreten ist
         if(error !== null) { callback(error); return; }
 
         // Das Paket wird mittels CBOR in Bytes umgewandelt
-        const encodedPackage = cbor.encode(package);
+        const encodedPackage = cbor.encode(ipnPackage);
 
         // Der Datensatz wird Verschlüsselt und zurückgegeben
         encrypt_data(key, encodedPackage, callback);
@@ -127,12 +127,30 @@ function encrypt_package_asymmetric(privKey, pubKey, package, callback) {
 };
 
 // Verschlüsselt ein Paket / Frame Symetrich
-function encrypt_package_symmetric(sharedSeecret, package, callback) {
+function encrypt_package_symmetric(sharedSeecret, ipnPackage, callback) {
     // Das Paket wird mittels CBOR in Bytes umgewandelt
-    const encodedPackage = cbor.encode(package);
+    const encodedPackage = cbor.encode(ipnPackage);
 
     // Der Datensatz wird Verschlüsselt und zurückgegeben
     encrypt_data(sharedSeecret, encodedPackage, callback);
+};
+
+// Entschlüsselt ein Paket / Frame Symetrisch
+function decrypt_package_symmetric(sharedSeecret, ipnPackage, callback) {
+    // Der Datensatz wird entschlüsselt
+    decrypt_data(sharedSeecret, ipnPackage, (error, result) => {
+        // Es wird geprüft ob ein Fehler aufgetreten ist
+        if(error !== null) { callback(error); return; }
+
+        // Es wird versucht das JSON Paket einzulesen
+        readJsonObjFromBytesSecure(result, (error, result) => {
+            // Es wird geprüft ob die Daten korrekt sind
+            if(error !== null) { callback(error); return; }
+
+            // Das Paket wird zurückgegeben
+            callback(null, result);
+        });
+    });
 };
 
 // Wird verwendet um ein neues Schlüsselpaar zu erstellen
@@ -168,12 +186,78 @@ function convert_addr_to_pkey(addressString) {
     return Buffer.from(unworded);
 };
 
+// Verschlüsselt einen Datensatz Anonym
+function encrypt_anonymous(bufferData, recipPubKey, callback) {
+    // Es wird geprüft ob Sodium Initalisiert wurde
+    if(_crypto_sodium_modul === null) { callback('no_crypto_lib_loaded'); return; }
+
+    // Aus dem Öffentlichen Schlüssel wird Curve25519 Schlüssel erzeugt
+    const curve25519PublicKey = _crypto_sodium_modul.crypto_sign_ed25519_pk_to_curve25519(Uint8Array.from(recipPubKey));
+
+    // Der Datensatz wird verschlüsselt
+    const cipher = _crypto_sodium_modul.crypto_box_seal(Uint8Array.from(bufferData), curve25519PublicKey);
+
+    // Der Datensatz wird zurückgegeben
+    callback(null, Buffer.from(cipher));
+};
+
+// Entschlüsselt einen Datensatz Anonym
+function decrypt_anonymous(bufferData, recipPrivKey, recipiPubKey, callback) {
+    // Es wird geprüft ob Sodium Initalisiert wurde
+    if(_crypto_sodium_modul === null) { callback('no_crypto_lib_loaded'); return; }
+
+    // Aus dem Öffentlichen ED25519 Schlüssel wird ein Curve25519 Schlüssel erstellt
+    const curve25519PublicKey = _crypto_sodium_modul.crypto_sign_ed25519_pk_to_curve25519(Uint8Array.from(recipiPubKey));
+
+    // Aus dem Privaten ED25519 Schlüssel wird ein Curve25519 Schlüssel erstellt
+    const curve25519PrivateKey = _crypto_sodium_modul.crypto_sign_ed25519_sk_to_curve25519(Uint8Array.from(recipPrivKey));
+
+    // Der Datensatz wird verschlüsselt
+    const palin = _crypto_sodium_modul.crypto_box_seal_open(Uint8Array.from(bufferData), curve25519PublicKey, curve25519PrivateKey);
+
+    // Der Datensatz wird zurückgegeben
+    callback(null, Buffer.from(palin));
+};
+
+// Verschlüsselt ein Paket Anonym
+function encrypt_anonymous_package(packageData, recipPubKey, callback) {
+    // Es wird geprüft ob Sodium Initalisiert wurde
+    if(_crypto_sodium_modul === null) { callback('no_crypto_lib_loaded'); return; }
+
+    // Das Paket wird mittels CBOR in Bytes umgewandelt und dann verschlüsselt
+    encrypt_anonymous(cbor.encode(packageData), recipPubKey, (error, result) => callback(error, result));
+};
+
+// Entschlüsselt ein Paket Anonym
+function decrypt_anonymous_package(chiperText, recipPrivKey, recipiPubKey, callback) {
+    // Es wird geprüft ob Sodium Initalisiert wurde
+    if(_crypto_sodium_modul === null) { callback('no_crypto_lib_loaded'); return; }
+
+    // Die Daten werden entschlüsselt
+    decrypt_anonymous(chiperText, recipPrivKey, recipiPubKey, (error, decrypted) => {
+        // Es wird geprüft ob ein Fehler aufgetreten ist
+        if(error !== null) { callback(error); return; }
+
+        // Es wird versucht das Paket einzulesen
+        readJsonObjFromBytesSecure(decrypted, (error, result) => {
+            // Es wird geprüft ob ein Fehler aufgetreten ist
+            if(error !== null) { callback(error); return; }
+
+            // Das Ergebnis wird zurückgegeeben
+            callback(null, result);
+        });
+    });
+};
+
 
 // Die Funktionen werden exportiert
 module.exports = {
     create_deterministic_keypair:create_deterministic_keypair,
     encrypt_package_asymmetric:encrypt_package_asymmetric,
+    decrypt_package_symmetric:decrypt_package_symmetric,
+    encrypt_anonymous_package:encrypt_anonymous_package,
     encrypt_package_symmetric:encrypt_package_symmetric,
+    decrypt_anonymous_package:decrypt_anonymous_package,
     create_random_session_id:create_random_session_id,
     generate_ed25519_keypair:generate_ed25519_keypair,
     compute_shared_secret:compute_shared_secret,
@@ -181,6 +265,8 @@ module.exports = {
     convert_addr_to_pkey:convert_addr_to_pkey,
     get_hash_from_dict:get_hash_from_dict,
     verify_digest_sig:verify_digest_sig,
+    encrypt_anonymous:encrypt_anonymous,
+    decrypt_anonymous:decrypt_anonymous,
     decrypt_data:decrypt_data,
     encrypt_data:encrypt_data,
     sign_digest:sign_digest,

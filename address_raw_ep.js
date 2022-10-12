@@ -1,8 +1,8 @@
-const { get_hash_from_dict, compute_shared_secret, encrypt_package_symmetric } = require('./crypto');
+const { get_hash_from_dict, compute_shared_secret, encrypt_anonymous_package } = require('./crypto');
 const { dprinterror, dprintok, colors, dprintwarning, dprintinfo } = require('./debug');
 const consensus = require('./consensus');
 const crypto = require('crypto');
-const cbor = require('cbor');
+
 
 
 // Gibt alle möglichen Statuse an
@@ -96,31 +96,33 @@ const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, desti
 
     // Signiert ein Paket mit dem Lokalen Schlüssel
     const _SIGN_DIGEST_WLSKEY = (pk, digestValue) => {
-        const sig = crypto_functions.ed25519.sign(digestValue, pk.privateKey);
+        const sig = Buffer.from(crypto_functions.ed25519.sign(digestValue, pk.privateKey));
         return { sig:sig, pkey:pk.publicKey }
     };
 
     // Signiert ein Frame und fügt den Empfänger sowie den Absender hinzu
-    const _COMPLETE_UNSIGNATED_FRAME = (encryptedFrameData, clearFrameData={}, callback) => {
-        // Die Daten zum verschlüssel werden verschlüsselt
-        const encryptedData = encryptedFrameData;
+    const _COMPLETE_UNSIGNATED_FRAME = (palinFrameData, clearFrameData={}, callback) => {
+        // Die Daten werden verschlüsselt
+        encrypt_anonymous_package(palinFrameData, Buffer.from(destinationPublicKey, 'hex'), (error, encryptedData) => {
+            // Es wird geprüft ob ein Fehler aufgetreten ist, wenn ja wird der Vorgang beendet
+            if(error !== null) { callback(error); return; }
 
-        // Das Paket wird vorbereitet
-        const preLayer2Frame = {
-            crypto_algo:'ed25519_salsa20_poly1305',
-            source:Buffer.from(sourcePrivateKey.publicKey).toString('hex'),
-            destination:destinationPublicKey,
-            body:{
-                ebody:encryptedData,
-                pbody:clearFrameData
-            } 
-        };
+            // Das Paket wird vorbereitet
+            const preLayer2Frame = {
+                source:Buffer.from(sourcePrivateKey.publicKey).toString('hex'),
+                destination:destinationPublicKey,
+                body:{
+                    ebody:encryptedData,
+                    pbody:clearFrameData
+                } 
+            };
 
-        // Das Paket wird Signiert
-        const packageSig = _SIGN_DIGEST_WLSKEY(sourcePrivateKey, get_hash_from_dict(preLayer2Frame));
+            // Das Paket wird Signiert
+            const packageSig = _SIGN_DIGEST_WLSKEY(sourcePrivateKey, get_hash_from_dict(preLayer2Frame));
 
-        // Das Finale Paket wird Signiert
-        callback(null, { ...preLayer2Frame, ssig:Buffer.from(packageSig.sig).toString('hex') });
+            // Das Finale Paket wird Signiert
+            callback(null, { ...preLayer2Frame, ssig:packageSig.sig });
+        });
     };
 
     // Wird verwendet um ein nicht Signiertes Frame zu Signieren und abzusenden
@@ -383,7 +385,7 @@ const addressRawEndPoint = async (rawFunctions, routeEP, sourcePrivateKey, desti
             const layer3Frame = { sport:localport, dport:destport, data:data };
 
             // Das Frame wird erstellt
-            const finallyFrame = _COMPLETE_UNSIGNATED_FRAME({ type:'nxt', body:layer3Frame }, {}, (error, finallyFrame) => {
+            _COMPLETE_UNSIGNATED_FRAME({ type:'nxt', body:layer3Frame }, {}, (error, finallyFrame) => {
                 // Es wird versucht das Paket abzusenden
                 _SEND_COMPLETED_LAYER2_FRAME(finallyFrame, null, pckret);
             });

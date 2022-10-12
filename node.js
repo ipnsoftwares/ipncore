@@ -1,9 +1,9 @@
-const { get_hash_from_dict, generate_ed25519_keypair, verify_digest_sig, sign_digest, create_deterministic_keypair, convert_pkey_to_addr } = require('./crypto');
+const { get_hash_from_dict, decrypt_anonymous_package, encrypt_anonymous_package, verify_digest_sig, sign_digest, create_deterministic_keypair, convert_pkey_to_addr } = require('./crypto');
+const { verifyLayerThreePackage, verifyFirstSecondLayerPackageBase } = require('./lpckg');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { isNodeOnPCLaptopOrEmbeddedLinuxSystem } = require('./utils');
 const { createLocalSocket, SockTypes } = require('./socket');
 const { addressRawEndPoint } = require('./address_raw_ep');
-const { verifyLayerThreePackage } = require('./lpckg');
 const { routingManager } = require('./routing_man');
 const { wsConnectTo, wsServer } = require('./wss');
 const consensus = require('./consensus');
@@ -421,26 +421,18 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         if(sigantedFrame.hasOwnProperty('source') !== true) return false;
         if(sigantedFrame.hasOwnProperty('ssig') !== true) return false;
 
-        // Es wird geprüt ob der Verschlüsselungsalgorrytmus korrekt ist
-        const splitedValues = sigantedFrame.crypto_algo.split('_');
-        if(splitedValues.length === 0) return false;
-
         // Das Paketobjekt wird geklont
-        let clonedObj = JSON.parse(JSON.stringify(sigantedFrame));
+        let clonedObj = { ...sigantedFrame };
 
         // Es wird geprüft ob die Länge des Öffentlichen Schlüssels korrekt ist
         if(sigantedFrame.source.length !== 64) return false;
 
         // Es wird geprüft ob die Länge der Signatur korrekt ist
-        if(sigantedFrame.ssig.length !== 128) return false;
-
-        // Es wird versucht den Öffentlichen Schlüssel sowie die Signatur zu Dekodieren
-        try{ var decodedPublicKey = Buffer.from(sigantedFrame.source, 'hex'), decodedSignature = Buffer.from(sigantedFrame.ssig, 'hex'); }
-        catch(e) { console.log(e); return false; }
+        if(sigantedFrame.ssig.length !== 64) return false;
 
         // Die Signatur wird geprüft
         delete clonedObj.ssig, clonedObj.pkey;
-        if(verify_digest_sig(get_hash_from_dict(clonedObj), decodedSignature, decodedPublicKey) === false) return false;
+        if(verify_digest_sig(get_hash_from_dict(clonedObj), sigantedFrame.ssig, Buffer.from(sigantedFrame.source, 'hex')) === false) return false;
 
         // Es wird geprüft ob die Signatur korrekt ist
         return true;
@@ -452,11 +444,11 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         const packageSig = sign_digest(get_hash_from_dict(unsignedFrame), privKey.privateKey);
 
         // Das Finale Paket wird Signiert
-        return Object.assign(unsignedFrame, { source:Buffer.from(privKey.publicKey).toString('hex'), ssig:Buffer.from(packageSig).toString('hex') });
+        return Object.assign(unsignedFrame, { source:Buffer.from(privKey.publicKey).toString('hex'), ssig:packageSig });
     };
 
     // Nimmt Pakete für Lokale Sockets entgegen
-    const _ENTER_LOCAL_SOCKET_PACKAGES = (layertpackage, connObj, sdeph, retrivedKeyPair, callback) => {
+    const _ENTER_LOCAL_SOCKET_PACKAGES = (layertpackage, connObj, sdeph, callback) => {
         // Es wird geprüft ob es einen Offenen Lokalen Port gibt, welcher auf diese Verbindung wartet
         const retrivedSocketEp = _openSockets.get(layertpackage.body.ebody.body.dport);
         if(retrivedSocketEp !== undefined) {
@@ -498,104 +490,104 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     // Verarbeitet Pakete welche für den Aktuellen Node bestimmt sind
     const _ENTER_LOCAL_LAYER2_PACKAGE = (packageFrame, connObj, retrivedKeyPair, callback) => {
         // Der Paketinhalt wird entschlüsselt
-        const decryptedPackage = packageFrame.body.ebody;
+        decrypt_anonymous_package(packageFrame.body.ebody, retrivedKeyPair.privateKey, retrivedKeyPair.publicKey, (error, decryptedPackage) => {
+            // Es wird geprüft ob ein Fehler aufgetreten ist
+            if(error !== null) { callback(error); return; }
 
-        // Es wird geprüft ob ein Pakettyp vorhanden ist
-        if(decryptedPackage.hasOwnProperty('type') === false) { callback(false); return; }
+            // Es wird geprüft ob ein Pakettyp vorhanden ist
+            if(decryptedPackage.hasOwnProperty('type') === false) { callback(false); return; }
 
-        // Aus der Empfänger Adresse sowie der Absender Adresse wird ein Hash erstellt
-        const endPointHash = crypto.createHash('sha256')
-        .update(Buffer.from(packageFrame.source, 'hex'))
-        .update(Buffer.from(retrivedKeyPair.publicKey))
-        .digest('hex');
+            // Aus der Empfänger Adresse sowie der Absender Adresse wird ein Hash erstellt
+            const endPointHash = crypto.createHash('sha256')
+            .update(Buffer.from(packageFrame.source, 'hex'))
+            .update(Buffer.from(retrivedKeyPair.publicKey))
+            .digest('hex');
 
-        // Es wird geprüft ob es sich um ein Ping Paket handelt
-        if(decryptedPackage.type === 'ping') {
-            // Es wird ein Hash aus den Zufälligen Daten erstellt
-            const packageRandomHash = crypto.createHash('sha256').update(Buffer.from(decryptedPackage.rdata, 'base64')).digest('hex');
+            // Es wird geprüft ob es sich um ein Ping Paket handelt
+            if(decryptedPackage.type === 'ping') {
+                // Es wird ein Hash aus den Zufälligen Daten erstellt
+                const packageRandomHash = crypto.createHash('sha256').update(Buffer.from(decryptedPackage.rdata, 'base64')).digest('hex');
 
-            // Der Strict Wert wird ermittelt
-            const strictMode = decryptedPackage.strict;
+                // Der Strict Wert wird ermittelt
+                const strictMode = decryptedPackage.strict;
 
-            // Es wird eine Zufällige Nonce erstellt, mit dieser Nonce werden die Daten verschlüsselt
-            const randomValue = crypto.randomBytes(24);
+                // Die Pong Daten werden verschlüsselt
+                const pongData = { type:'pong', sptnt:30000, packRHash:packageRandomHash };
 
-            // Das Frame wird Signiert
-            const signatedFrame = _SIGN_FRAME(retrivedKeyPair, {
-                crypto_algo:'ed25519_salsa20_poly1305',
-                source:Buffer.from(retrivedKeyPair.publicKey).toString('hex'),
-                destination:packageFrame.source,
-                body:{
-                    nonce:randomValue.toString('base64'),
-                    ebody:{
-                        type:'pong', sptnt:30000,
-                        packRHash:packageRandomHash 
-                    },
-                    pbody:{}
-                }
-            });
+                // Die Pong Daten werden verschlüsselt
+                encrypt_anonymous_package(pongData, Buffer.from(packageFrame.source, 'hex'), (error, result) => {
+                    // Das Frame wird Signiert
+                    const signatedFrame = _SIGN_FRAME(retrivedKeyPair, {
+                        source:Buffer.from(retrivedKeyPair.publicKey).toString('hex'),
+                        destination:packageFrame.source,
+                        body:{
+                            ebody:result,
+                            pbody:{}
+                        }
+                    });
 
-            // Es wird geprüft ob es sich um ein Striktes Paket handelt, wenn ja wird es über die Verbindung zurückgesendet, über die es Empfangen wurde
-            if(strictMode === true) {
-                // Das Paket wird direkt zurück an den Absender gesendet
-                connObj.sendUnsigRawPackage({ type:'pstr',frame:signatedFrame }, (r) => {
-                    // Dem Routing Manager wird Siganlisiert dass das Paket erfolgreich übertragen wurden
-                    _rManager.signalPackageTransferedToPKey(packageFrame.destination, packageFrame.source, connObj).then(() => {
-                        dprintinfo(10, ['Ping'], [colors.FgRed, get_hash_from_dict(decryptedPackage).toString('base64')], ['returned successfully.']);
-                        callback(r);
-                    })
+                    // Es wird geprüft ob es sich um ein Striktes Paket handelt, wenn ja wird es über die Verbindung zurückgesendet, über die es Empfangen wurde
+                    if(strictMode === true) {
+                        // Das Paket wird direkt zurück an den Absender gesendet
+                        connObj.sendUnsigRawPackage({ type:'pstr',frame:signatedFrame }, (r) => {
+                            // Dem Routing Manager wird Siganlisiert dass das Paket erfolgreich übertragen wurden
+                            _rManager.signalPackageTransferedToPKey(packageFrame.destination, packageFrame.source, connObj).then(() => {
+                                dprintinfo(10, ['Ping'], [colors.FgRed, get_hash_from_dict(decryptedPackage).toString('base64')], ['returned successfully.']);
+                                callback(r);
+                            })
+                        });
+                    }
+                    else {
+                        // Das Paket wird an den Routing Manager übergeben
+                        _rManager.enterOutgoingLayer2Packages(packageFrame.source, signatedFrame, (r) => {
+                            dprintinfo(10, ['Ping'], [colors.FgRed, get_hash_from_dict(decryptedPackage).toString('base64')], ['returned successfully.']);
+                            callback(r);
+                        }, 1);
+                    }
                 });
             }
-            else {
-                // Das Paket wird an den Routing Manager übergeben
-                _rManager.enterOutgoingLayer2Packages(packageFrame.source, signatedFrame, (r) => {
-                    dprintinfo(10, ['Ping'], [colors.FgRed, get_hash_from_dict(decryptedPackage).toString('base64')], ['returned successfully.']);
-                    callback(r);
-                }, 1);
-            }
-        }
-        // Das Paket wird weiterverabeitet
-        else {
-            // Es wird versucht den RawEP abzurufen
-            const openEP = _openRawEndPoints.get(endPointHash);
-
-            // Es wird geprüft ob es sich um ein Pong Paket handelt, wenn ja wird es direkt weitergegeben
-            if(decryptedPackage.type === 'pong') {
-                // Es wird geprüft ob der EndPunkt vorhanden ist
-                if(openEP === undefined) { callback(false); return; }
-
-                // Das Paket wird an den Lokalen EndPunt übergeben
-                openEP.enterPackage(packageFrame, connObj, (r) => {
-                    if(r === true) callback();
-                    else callback(false);
-                });
-
-                // Der Vorgang wird beendet
-                return;
-            }
-
-            // Es wird geprüft ob es sich um ein gültiges Layer 3 Paket handelt
-            if(verifyLayerThreePackage(decryptedPackage) === false) { callback(false); return; }
-
             // Das Paket wird weiterverabeitet
-            _ENTER_LOCAL_SOCKET_PACKAGES(packageFrame, connObj, endPointHash, retrivedKeyPair, callback);
-        }
+            else {
+                // Es wird versucht den RawEP abzurufen
+                const openEP = _openRawEndPoints.get(endPointHash);
+
+                // Es wird geprüft ob es sich um ein Pong Paket handelt, wenn ja wird es direkt weitergegeben
+                if(decryptedPackage.type === 'pong') {
+                    // Es wird geprüft ob der EndPunkt vorhanden ist
+                    if(openEP === undefined) { callback(false); return; }
+
+                    // Das Paket wird an den Lokalen EndPunt übergeben
+                    openEP.enterPackage({ ...packageFrame, body:{ ebody:decryptedPackage } }, connObj, (r) => {
+                        if(r === true) callback(true);
+                        else callback(false);
+                    });
+
+                    // Der Vorgang wird beendet
+                    return;
+                }
+
+                // Es wird geprüft ob es sich um ein gültiges Layer 3 Paket handelt
+                if(verifyLayerThreePackage(decryptedPackage) === false) { callback(false); return; }
+
+                // Das Paket wird weiterverabeitet
+                _ENTER_LOCAL_SOCKET_PACKAGES({ ...packageFrame, body:{ ebody:decryptedPackage } }, connObj, endPointHash, () => {
+                    callback(true);
+                });
+            }
+        });
     };
 
     // Nimt eintreffende Pakete entgegen
     const _ENTER_RECIVED_SECOND_LAYER_PACKAGES = (package, connObj) => {
-        // Es wird geprüft ob die Datenfelder vorhanden sind
-        if(!package.hasOwnProperty('frame')) { connObj.close(); console.log('AT6TR1'); return; }
-        if(!package.frame.hasOwnProperty('destination')) { connObj.close(); console.log('AT6TR3'); return; }
-        if(!package.frame.hasOwnProperty('source')) { connObj.close(); console.log('AT6TR4'); return; }
-        if(!package.frame.hasOwnProperty('ssig')) { connObj.close(); console.log('AT6TR5'); return; }
-        if(!package.frame.hasOwnProperty('body')) { connObj.close(); console.log('AT6TR6'); return; }
-        if(!package.frame.body.hasOwnProperty('pbody')) { connObj.close(); console.log('AT6TR8'); return; }
-        if(!package.frame.body.hasOwnProperty('ebody')) { connObj.close(); console.log('AT6TR9'); return; }
+        // Es wird geprüft ob es sich um ein Gültiges Layer 2 Paket handelt
+        if(verifyFirstSecondLayerPackageBase(package) !== true) {
+            console.log('INVALID_SECOND_LAYER_PACKAGE', package.frame);
+            return;
+        }
 
         // Es wird geprüft ob die Frame Signatur korrekt ist
-        if(!_VERIFY_FRAME_SIGNATURE(package.frame)) {
-            console.log('INVALID_FRAME_SIGANTURE_PACKAGE_DROPED');
+        if(_VERIFY_FRAME_SIGNATURE(package.frame) !== true) {
+            console.log('INVALID_FRAME_SIGANTURE_PACKAGE_DROPED', package.frame);
             return;
         }
 
@@ -616,7 +608,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
 
                 // Das Paket wird Lokal weiter verarbeitet
                 _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, fKeyPair, (packageState) => {
-
+                    
                 });
             })
         }
@@ -629,7 +621,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     // Sendet ein Routing Response an einen Peer
     const _SEND_ROUTING_RESPONSE = (oneTimeAddressRequest, timeout, connObj, procId, retrLocalKeyPair, callback) => {
         // Es wird ein OpenRouteResponseSessionPackage gebaut
-        const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:consensus.version, orn:oneTimeAddressRequest, addr:retrLocalKeyPair.publicKey, timeout:timeout };
+        const openRouteSessionPackage = { type:'rrr', version:consensus.version, orn:oneTimeAddressRequest, addr:Buffer.from(retrLocalKeyPair.publicKey), timeout:timeout };
 
         // Aus dem OneTime Value und der Adresse wird ein Hash erstellt
         const decodedProcId = Buffer.from(procId, 'hex');
@@ -885,7 +877,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                         const newPackageTTL = rpackage.timeout - connObjX.getPingTime() - procTTL;
 
                         // Es wird ein OpenRouteSessionPackage gebaut
-                        const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rrr', version:consensus.version, orn:rpackage.orn, addr:rpackage.addr, addrsig:rpackage.addrsig, timeout:newPackageTTL };
+                        const openRouteSessionPackage = { type:'rrr', version:consensus.version, orn:rpackage.orn, addr:rpackage.addr, addrsig:rpackage.addrsig, timeout:newPackageTTL };
 
                         // Das Paket wird abgesendet
                         firstExtractedPeer.ep.sendUnsigRawPackage(openRouteSessionPackage, (r) => {
@@ -1078,7 +1070,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             const newPackageTTL = timeout - procTTL;
 
             // Es wird ein OpenRouteSessionPackage gebaut, Consensus(ARTEMIS, INIP001, CLEAR-REQUEST)
-            const openRouteSessionPackage = { crypto_algo:'ed25519', type:'rreq', version:consensus.version, orn:randSessionId, addrh:addressHash, timeout:newPackageTTL };
+            const openRouteSessionPackage = { type:'rreq', version:consensus.version, orn:randSessionId, addrh:addressHash, timeout:newPackageTTL };
 
             // Das Paket wird an diesen Peer gesendet
             firstExtractedPeer.sendUnsigRawPackage(openRouteSessionPackage, () => {

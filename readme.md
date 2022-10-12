@@ -81,6 +81,7 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
 - uuid = 8.3.2
 - ws = 8.8.1
 - yargs = 17.5.1
+- level = 8.0.0
 
 ## ⚖️ **License - Much license**
 IPN Core is released under the terms of the MIT license. See
