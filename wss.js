@@ -3,6 +3,7 @@ const { isValidateHelloPackageLayerOne, validateLayerOneBasePackage, readJsonObj
 const { isNodeOnPCLaptopOrEmbeddedLinuxSystem, parsIpAddress } = require('./utils');
 const { dprintok, dprinterror, colors } = require('./debug');
 const { WebSocketServer, WebSocket } = require('ws');
+const { base58_to_binary } = require('base58-js');
 const consensus = require('./consensus');
 const { v4 } = require('uuid');
 const cbor = require('cbor');
@@ -166,7 +167,9 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         totalRXErrorBytes:() => _errorRecivedPackageBytes,
         totalRXErrorPackages:() => _errorRecivedPackages,
         getPeerPublicKey:() => _destinationPublicKey,
+        connectedSince:() => _connectionStartTime,
         getPeerIPAddressUrl:() => sourceAddress,
+        protFunctions:() => _peerProtFunctions,
         totalRXPackages:() => _recivedPackages,
         getPeerFunctions:() => _peerFunctions,
         totalTXPackages:() => _sendPackages,
@@ -175,6 +178,9 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         peerVersion:() => _peerVersion,
         isConnected:() => _isConnected,
         isIncomming:() => incomming,
+        rxBytes:() => _recivedPackageBytes,
+        txBytes:() => _sendPackagesBytes,
+        type:() => 'WSv4',
         sendRate:() => _prate,
         getPingTime:() => {
             if(_lastPing === 0) {
@@ -194,9 +200,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
     // Wird aller 5 Sekunden ausgeführt und führt einen Ping innerhalb der Aktuellen Verbindung durch
     const _PING_PONG_TIMER = () => {
         // Es wird geprüft ob noch eine Verbindung mit dem Peer besteht
-        if(_isConnected !== true) {
-            return;
-        }
+        if(_isConnected !== true) { return; }
 
         // Es wird ein Zufälliger Wert erzeugt
         const pingPackageID = v4();
@@ -269,8 +273,8 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         if(isNodeOnPCLaptopOrEmbeddedLinuxSystem() === true) {
             if(!incomming) {
                 const availPort = localeNodeObject.localServerPorts('ws');
-                if(availPort !== null) helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), port:{ type:'ws', ep:availPort.port } }; 
-                else helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), port:null }; 
+                if(availPort !== null) helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), locport:{ type:'ws', ep:availPort.port } }; 
+                else helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), locport:null }; 
             }
             else {
                 helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), locport:null }; 
@@ -294,7 +298,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
     const _ENTER_PEER_HELLO_PACKAGE = (package_data) => {
         // Es wird geprüft ob das Peer bereits Initalisiert wurde
         if(_destinationPublicKey !== null || _connectionIsInited !== false) {
-            dprinterror(10, ['An internal error has occurred, the connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['is closed for security reasons.']);
+            dprinterror(10, ['An internal error has occurred, the connection XYZ'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['is closed for security reasons.']);
             _ADD_PACKAGE_RECIVED_INVALID(package_data);
             wsConnObject.close();
             return; 
@@ -329,11 +333,11 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         // Es wird geprüft ob es sich um eine Eingehene Verbindung handelt, wenn ja wird geprüft ob die gegenseite einen Port angegeben hat
         if(incomming === true && isNodeOnPCLaptopOrEmbeddedLinuxSystem() === true) {
             // Es wird geprüft ob ein Port vorhanden ist
-            if(package_data.port !== null) {
+            if(package_data.locport !== null) {
                 // Es wird versucht eine Verbindung herzustellen
-                if(package_data.port.type === 'ws') {
+                if(package_data.locport.type === 'ws') {
                     // Ließt die Adresse der gegenseite aus
-                    _peerRemoteEp = package_data.port;
+                    _peerRemoteEp = package_data.locport;
                 }
             }
         }
@@ -445,7 +449,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         readJsonObjFromBytesSecure(message, (error, encodedObject) => {
             // Es wird geprüft ob ein Fehler aufgetreten ist
             if(error !== null) {
-                dprinterror(10, ['An error occurred in session'], [colors.FgMagenta, _currentSessionId]);
+                dprinterror(10, ['An error occurred in session', error], [colors.FgMagenta, _currentSessionId]);
                 wsConnObject.close();
                 return;
             }

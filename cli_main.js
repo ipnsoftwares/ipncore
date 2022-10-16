@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const consensus = require('./consensus');
 const figlet = require('figlet');
 

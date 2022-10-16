@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 if (require.main === module) () => {
     const core = require('./core');
 

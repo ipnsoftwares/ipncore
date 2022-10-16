@@ -25,7 +25,8 @@ function readJsonObjFromBytesSecure(byteObj, callback) {
         // Das eingelesene Paket wird eingelesen
         callback(null, enc); 
     }
-    catch(error) { 
+    catch(error) {
+        console.log(error)
         callback(`IO_READING_ERROR:${error}`);
     }
 };
@@ -39,7 +40,7 @@ function isValidateHelloPackageLayerOne(packageObject) {
     const allowedFields = ['pkey', 'protf', 'version', 'sfunctions', 'type', 'locport', 'sig'];
 
     // Es wird geprüft ob alle gültigen Feder vorhanden sind
-    for(const otem of Object.keys(packageObject)) { if(allowedFields.includes(otem) === false) { return false; } }
+    for(const otem of Object.keys(packageObject)) { if(allowedFields.includes(otem) === false) { console.log(otem); return false; } }
     for(const otem of allowedFields) { if(Object.keys(packageObject).includes(otem) === false) { return false; } }
 
     // Es wird geprüft ob es sich um ein Register Node Package handelt

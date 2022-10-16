@@ -1,4 +1,4 @@
-# 🌍 **Interplanetary Network (IPN) -- Milestone 1** 👽
+# 🌍 **Interplanetary Network (IPN) -- Milestone 2** 👽
 
 [![made-with-javascript](https://img.shields.io/badge/Made%20with-JavaScript-1f425f.svg)](https://www.javascript.com)
 [![GitHub branches](https://badgen.net/github/branches/Naereen/Strapdown.js)](https://github.com/fluffelpuff/ipncore/)

@@ -17,8 +17,8 @@ const Layer2Socket = (localNodeObject, localNodePrivKey, socketType, remoteAddre
     // Verwaltet alle Events
     const eventManager = new events.EventEmitter();
 
-    // Wird verwendet um einen RAW oder Datagramm Socket zu erstellen
-    const _CREATE_RAW_DTGRM_SOCKET = () => {
+    // Wird verwendet um einen RAW Socket erstellen
+    const _CREATE_RAW_SOCKET = () => {
         // Nimmt ein Paket entgegen
         const _enterPackage = (packageFrame, addressRawEp, callback) => {
             // Es wird geprüft ob die Adresse Empfänger
@@ -89,7 +89,7 @@ const Layer2Socket = (localNodeObject, localNodePrivKey, socketType, remoteAddre
     };
 
     // Es wird ein RAW Socket erzeugt
-    return _CREATE_RAW_DTGRM_SOCKET();
+    return _CREATE_RAW_SOCKET();
 };
 
 // Erzeugt einen neuen Socket ohne Spezifischen Address EndPunkt

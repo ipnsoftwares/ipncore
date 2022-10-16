@@ -1,6 +1,5 @@
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
-const { createLayerTwoPackage } = require('./lpckg');
-const { get_hash_from_dict } = require('./crypto');
+const { get_hash_from_dict, convert_pkey_to_addr } = require('./crypto');
 const consensus = require('./consensus');
 const EventEmitter = require('events');
 const crypto = require('crypto');
@@ -227,7 +226,9 @@ const routingManager = () => {
 
     // Wird verwendet um alle bekannten Routen aufzulisten
     const _listRoutes = async () => {
-
+        let retrived = [];
+        for(const otem of pkeyToSessionEP.keys()) { retrived.push(convert_pkey_to_addr(Buffer.from(otem, 'hex'))); }
+        return retrived;
     };
 
     // Gibt an ob es eine Route für diesen Key gibt

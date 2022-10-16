@@ -608,7 +608,11 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
 
                 // Das Paket wird Lokal weiter verarbeitet
                 _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, fKeyPair, (packageState) => {
-                    
+                    // Es wird geprüft ob das Paket erfolgreich verarbeitet wurde
+                    if(packageState !== true) {
+                        // Es wird geprüft ob eine Verbindung mit der gegenseite besteht
+
+                    }
                 });
             })
         }
@@ -621,7 +625,13 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     // Sendet ein Routing Response an einen Peer
     const _SEND_ROUTING_RESPONSE = (oneTimeAddressRequest, timeout, connObj, procId, retrLocalKeyPair, callback) => {
         // Es wird ein OpenRouteResponseSessionPackage gebaut
-        const openRouteSessionPackage = { type:'rrr', version:consensus.version, orn:oneTimeAddressRequest, addr:Buffer.from(retrLocalKeyPair.publicKey), timeout:timeout };
+        const openRouteSessionPackage = {
+            type:'rrr',                                         // Gibt an dass es sich um ein Routing Request Package handelt
+            version:consensus.version,                          // Gibt die Aktuelle Versions des Nodes an
+            orn:oneTimeAddressRequest,                          // Gibt den OneTimeRequest wert an
+            addr:Buffer.from(retrLocalKeyPair.publicKey),       // Gibt die Gefundende Adresse an
+            timeout:timeout                                     // Gibt an, wann das Paket abläuft
+        };
 
         // Aus dem OneTime Value und der Adresse wird ein Hash erstellt
         const decodedProcId = Buffer.from(procId, 'hex');
@@ -659,7 +669,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         // Es wird geprüft ob es sich um eine Anfrage oder eine Antwort handelt
         if(package.type === 'rreq') {
             // Es wird geprüft ob die benötigten Datenfelder vorhanden sind
-            if(!package.hasOwnProperty('addrh')) { connObj.close(); console.log('AT2TZ'); return; }
+            if(!package.hasOwnProperty('addrh')) { connObj.close(); console.log('AT2TZ', package); return; }
 
             // Es wird geprüft ob die Länge des Addresses Hashes sowie des Einaml Schlüssels korrekt sind
             if(package.addrh.length !== 64) { connObj.close(); console.log('AT5TZ'); return; }
@@ -1070,7 +1080,13 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             const newPackageTTL = timeout - procTTL;
 
             // Es wird ein OpenRouteSessionPackage gebaut, Consensus(ARTEMIS, INIP001, CLEAR-REQUEST)
-            const openRouteSessionPackage = { type:'rreq', version:consensus.version, orn:randSessionId, addrh:addressHash, timeout:newPackageTTL };
+            const openRouteSessionPackage = {
+                type:'rreq',
+                version:consensus.version,
+                orn:randSessionId, 
+                addrh:addressHash,
+                timeout:newPackageTTL
+            };
 
             // Das Paket wird an diesen Peer gesendet
             firstExtractedPeer.sendUnsigRawPackage(openRouteSessionPackage, () => {
@@ -1132,16 +1148,46 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
 
     // Stellt alle API Funktionen bereit
     const _API_FUNCTIONS = {
+        // Listet alle Verbindungen auf
+        getAllConnections:(root, callback) => {
+            // Es werden alle Verbindungen abgerufen und verarbeitet
+            let retrived = [];
+            for(const otem of _openConnectionPeers.keys()) {
+                const tempItem = _openConnectionPeers.get(otem);
+                if(tempItem !== undefined) retrived.push({
+                    version: tempItem.peerVersion(),
+                    session_id:`0x${tempItem.sessionId()}`,
+                    connected_since:`${tempItem.connectedSince()}`,
+                    enabeld_services: tempItem.protFunctions(),
+                    end_point:{ type: tempItem.type(), addr: tempItem.getPeerIPAddressUrl() },
+                    io_data:{ send_bytes: tempItem.rxBytes(), recive_bytes: tempItem.txBytes() },
+                });
+            }
 
-    };
+            // Die Daten werden zurückgegben
+            callback(null, retrived);
+        },
+        // Listet alle bekannten Routen auf
+        getAllKnownAddressRoutes:(root, callback) => {
+            _rManager.listRoutes().then((ritem) => {
+                // Die Daten werden abgerufen und verarbeitet
+                let retrived = [];
+                for(const tempItem of ritem) {
+                    retrived.push({
+                        address:tempItem,
+                    }); 
+                }
 
-    // Wir verwendet um einen Websocket Server zu erstellen (Ip / Tor)
-    const addNewWSServer = (localPort, localIp=null, isTor=false, privKeyPath=null) => {
-        // Erzeugt ein neues Websocket Server objekt
-        const serverObj = wsServer(_localPrimaryKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, localNodeFunctions);
-
-        // Das Serverobjekt wird abgespeichert
-        _serverSockets.set(serverObj._id, serverObj);
+                // Die Daten werden zurückgegben
+                callback(null, retrived);
+            });
+        },
+        // Listet alle Lokalen Adressen auf
+        getAllLocalAddresses:(root, callback) => {
+            let retrived = [ convert_pkey_to_addr(Buffer.from(_localPrimaryKeyPair.publicKey)) ];
+            for(const otem of _localKeyPairs.keys()) { retrived.push(convert_pkey_to_addr(Buffer.from(otem, 'hex'))); }
+            callback(null, retrived);
+        }
     };
 
     // Wird verwendet um eine Webserver verbindung herzustellen
@@ -1461,18 +1507,34 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Wird als Objekt Funktionen verwendet
-    const _OBJ_FUNCTIONS = {
-        apiFunctions:_API_FUNCTIONS,
-        addNewWSServer:addNewWSServer,
-        initAddressRoute:initAddressRoute,
-        createNewLocalSocket:createNewLocalSocket,
-        getAddressRawEndPoint:getAddressRawEndPoint,
-        addPeerClientConnection:addPeerClientConnection,
-    };
+    if(isNodeOnPCLaptopOrEmbeddedLinuxSystem() === true) {
+        // Wir verwendet um einen Websocket Server zu erstellen (Ip / Tor)
+        const addNewWSServer = (localPort, localIp=null, isTor=false, privKeyPath=null) => {
+            // Erzeugt ein neues Websocket Server objekt
+            const serverObj = wsServer(_localPrimaryKeyPair, _SOCKET_FUNCTIONS, localPort, localIp, localNodeFunctions);
 
-    // Das Objekt wird zurückgegben
-    if(nodeCallback !== undefined && nodeCallback !== null) { nodeCallback(_OBJ_FUNCTIONS); }
-    return _OBJ_FUNCTIONS
+            // Das Serverobjekt wird abgespeichert
+            _serverSockets.set(serverObj._id, serverObj);
+        };
+
+        // Wird als Steuerobjekt verwendet, sobald es sich um ein PC oder Laptop handelt
+        const _OBJ_FUNCTIONS = {
+            apiFunctions:_API_FUNCTIONS,
+            addNewWSServer:addNewWSServer,
+            initAddressRoute:initAddressRoute,
+            createNewLocalSocket:createNewLocalSocket,
+            getAddressRawEndPoint:getAddressRawEndPoint,
+            addPeerClientConnection:addPeerClientConnection,
+            api:_API_FUNCTIONS
+        };
+    
+        // Das Objekt wird zurückgegben
+        if(nodeCallback !== undefined && nodeCallback !== null) { nodeCallback(_OBJ_FUNCTIONS); }
+        return _OBJ_FUNCTIONS
+    }
+    else {
+        throw new Error('Unsupported host');
+    }
 }
 
 // Die Module werden Exportiert
