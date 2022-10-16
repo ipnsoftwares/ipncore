@@ -6,8 +6,8 @@ const fs = require('fs');
 
 
 
-// Wird verwendet um einen Request zu Verarbeiten
-function processRequest(nodeObj, duplexSocketObject, command, procid, callback) {
+// Wird verwendet um ein GET-Request zu Verarbeiten
+function processGetRequest(nodeObj, duplexSocketObject, command, procid, callback) {
     // Sendet den eigentlichen Datensatz ab
     const SEND_DATA = (finalResponse) => {
         // Das Paket wird mittels CBOR umgewanldet
@@ -81,11 +81,27 @@ function processRequest(nodeObj, duplexSocketObject, command, procid, callback) 
             SEND_DATA(finalResponse)
         });
     }
+    else if(command === 'get_new_post_process_id') {
+
+    }
+    else if(command === 'get_new_socket_id') {
+
+    }
     else {
         // Die Verbindung wird geschlossen, es handelt sich um einen Unbekannten befehl
         console.log('UNKOWN_COMMAND', command);
     }
-}
+};
+
+// Wird verwendet um ein POST-Request zu Verarbeiten
+function processPostRequest(nodeObj, duplexSocketObject, command, procid, args, callback) {
+
+};
+
+// Wird verwendet um Socket Vorgänge zu Verarbeiten
+function processSocket(nodeObj, duplexSocketObject, socketId, data) {
+
+};
 
 // Führt 2 Duplex Verbindungen zusammen
 function mergeDuplexSocketConnections(nodeObj, inputSocket, outputSocket, procId) {
@@ -140,7 +156,7 @@ function mergeDuplexSocketConnections(nodeObj, inputSocket, outputSocket, procId
             return;
         }
 
-        // Es wird geprüft ob es sich um ein Request handelt
+        // Es wird geprüft ob es sich um ein GET-Request handelt
         if(readedData.data.type === 'get') {
             // Es wird geprüft ob die Restlichen Datenfelder vorhanden sind
             if(readedData.data.cmd === undefined || readedData.data.process_id === undefined) {
@@ -149,8 +165,17 @@ function mergeDuplexSocketConnections(nodeObj, inputSocket, outputSocket, procId
             }
 
             // Der Request wird weiterverbeitet
-            processRequest(nodeObj, duplexProcSockObject, readedData.data.cmd, readedData.data.process_id, () => { pckCallback(); });
+            processGetRequest(nodeObj, duplexProcSockObject, readedData.data.cmd, readedData.data.process_id, () => { pckCallback(); });
         }
+        // Es wird geprüft ob es sich um ein POST-Request handelt
+        else if(readedData.data.type === 'post') {
+
+        }
+        // Es wird geprüft ob es sich um ein Socket Vorgang handelt
+        else if(readedData.data.type === 'socket') {
+
+        }
+        // Es handelt sich um ein Unbeaknnten Modus
         else {
             console.log('UNKOWN_DATA_TYPE');
         }
@@ -328,7 +353,7 @@ function createDuplexSocket(nodeObj, filepath, callback) {
     socketIoSocket.listen(filepath, (x) => {
         callback(null, socketIoSocket);
     })
-}
+};
 
 // Bereitet den Shared Memory für die API auf Systemebene vor
 const createSystemSharedMemoryAPI = (nodeObj, callback) => {

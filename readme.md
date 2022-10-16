@@ -37,6 +37,7 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
 | Language                                                      | State               | Improvement Proposal                                                                              | Full Library |
 | ---                                                           | ---                 | ---                                                                                               | ---          |
 | [NodeJs / Javascript](https://github.com/fluffelpuff/ipncore) | 👩‍💻 In progress      |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ✅ Yes    |
+| Flutter / Dart                                                | 🚫 Work not started |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ❌ No     |
 | C / C++                                                       | 🚫 Work not started |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ❌ No     |
 | [Python](https://github.com/fluffelpuff/ipnpylib)             | 👩‍💻 In progress      |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ❌ No     |
 | Rust                                                          | 🚫 Work not started |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ❌ No     |

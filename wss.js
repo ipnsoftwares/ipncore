@@ -3,7 +3,6 @@ const { isValidateHelloPackageLayerOne, validateLayerOneBasePackage, readJsonObj
 const { isNodeOnPCLaptopOrEmbeddedLinuxSystem, parsIpAddress } = require('./utils');
 const { dprintok, dprinterror, colors } = require('./debug');
 const { WebSocketServer, WebSocket } = require('ws');
-const { base58_to_binary } = require('base58-js');
 const consensus = require('./consensus');
 const { v4 } = require('uuid');
 const cbor = require('cbor');
@@ -63,8 +62,14 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
     // Gibt an wieviele Pakete gesendet und Empfangen wurden
     var _recivedPackages = 0, _sendPackages = 0, _recivedPackageBytes = 0, _sendPackagesBytes = 0, _errorRecivedPackages = 0, _errorRecivedPackageBytes = 0, _prate = 0;
 
+    // Wird verwendet um die Protocol functions abzurufen
+    const _GET_SOCKET_PROTOCOL_FUNCTIONS = () => {
+        // Es wird geprüft ob es sich um einen Browser oder einen PC handelt
+        return ['prot_full_relay'];
+    };
+
     // Wird verwendet um Pakete an die gegenseite zu senden
-    const _SNED_SESSION_BASED_PACKAGES = (signatedPackage, callback) => {
+    const _SNED_SESSION_BASED_PACKAGES = async (signatedPackage, callback) => {
         // Speichert die Aktuelle Uhrzeit ab
         const currentTime = Date.now();
 
@@ -130,7 +135,8 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         const finallyObjPackage = { ...baseRAWPackage, sig:packageSignature };
 
         // Das Paket wird an die gegenseite übertragen
-        _SNED_SESSION_BASED_PACKAGES(finallyObjPackage, callback);
+        _SNED_SESSION_BASED_PACKAGES(finallyObjPackage, callback)
+        .catch((t) => { });
     };
 
     // Wird verwendet um zu Signalisieren das X Bytes empfangen wurden
@@ -223,7 +229,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         var supportedFunctions = [];
         for(const x of clrqfunctions) {
             for(const t of _peerFunctions) { if (x === t) supportedFunctions.push(x); } 
-        }
+        };
 
         // Es wird geprüft ob die Verbindung mit dem Peer hergestellt ist
         if(_isConnected !== true) { wsConnObject.close(); return; }
@@ -235,7 +241,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         _connectionIsInited = true;
 
         // Die Verbindung wird registriert
-        localeNodeObject.registerConnection(_WS_SOCKET_FUNCTIONS, _peerProtFunctions, (result) => {
+        localeNodeObject.registerConnection(_WS_SOCKET_FUNCTIONS, _peerProtFunctions, async (result) => {
             // Es wird geprüft ob der Vorgang erfolgreich durchgeführt werden konnte
             if(result !== true) {
                 dprinterror(10, ['An internal error has occurred, the connection'], [colors.FgMagenta, _currentSessionId], ['is closed for security reasons.'])
@@ -248,7 +254,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
             if(_isConnected !== true) { wsConnObject.close(); return; }
 
             // Die Dienste der Verbindung werden gestartet
-            if(!incomming) localeNodeObject.startClientServices(_WS_SOCKET_FUNCTIONS, supportedFunctions);
+            if(!incomming) await localeNodeObject.startClientServices(_WS_SOCKET_FUNCTIONS, supportedFunctions);
 
             // Es wird Signalisiert dass eine Verbindung aufgebaut wurde
             if(!incomming) { if(callbackAfterConnected !== null) callbackAfterConnected(); }
@@ -260,10 +266,17 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
             if(incomming === true && isNodeOnPCLaptopOrEmbeddedLinuxSystem() === true) {
                 // Es wird geprüft ob der Client einen Port für p2p Verbindungen angegeben hat
                 if(_peerRemoteEp !== null) {
-                    console.log('INCOMMING_CONNECTION_P2P_FUNCTION_NOT_IMPLEMENTED');
+                    // Es wird geprüft ob die Funtkion von der Gegenseite verwendete wurde
+                    if(_peerProtFunctions.includes('prot_full_relay') === true || _peerProtFunctions.includes('p2p_full') === true) {
+                        // Es wird versucht eine Ausgehende Verbindung aufzubauen
+                        console.log('INCOMMING_CONNECTION_P2P_FUNCTION_NOT_IMPLEMENTED', _peerProtFunctions);
+                    }
+                    else {
+                        console.log('CLIENT_NOT_SUPPORTED_FUNCTION')
+                    }
                 }
             }
-        });
+        }).catch((e) => { });
     };
 
     // Wird verwendet um ein HelloPackage an die gegenseite zu senden
@@ -273,15 +286,15 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         if(isNodeOnPCLaptopOrEmbeddedLinuxSystem() === true) {
             if(!incomming) {
                 const availPort = localeNodeObject.localServerPorts('ws');
-                if(availPort !== null) helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), locport:{ type:'ws', ep:availPort.port } }; 
-                else helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), locport:null }; 
+                if(availPort !== null) helloPackage = { type:"regnde", sfunctions:sfunctions, protf:_GET_SOCKET_PROTOCOL_FUNCTIONS(), pkey:Buffer.from(socketKeyPair.publicKey), locport:{ type:'ws', ep:availPort.port } }; 
+                else helloPackage = { type:"regnde", sfunctions:sfunctions, protf:_GET_SOCKET_PROTOCOL_FUNCTIONS(), pkey:Buffer.from(socketKeyPair.publicKey), locport:null }; 
             }
             else {
-                helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), locport:null }; 
+                helloPackage = { type:"regnde", sfunctions:sfunctions, protf:_GET_SOCKET_PROTOCOL_FUNCTIONS(), pkey:Buffer.from(socketKeyPair.publicKey), locport:null }; 
             }
         }
         else {
-            helloPackage = { type:"regnde", sfunctions:sfunctions, protf:['prot_full_relay'], pkey:Buffer.from(socketKeyPair.publicKey), locport:null }; 
+            helloPackage = { type:"regnde", sfunctions:sfunctions, protf:_GET_SOCKET_PROTOCOL_FUNCTIONS(), pkey:Buffer.from(socketKeyPair.publicKey), locport:null }; 
         }
 
         // Es wird geprüft ob die Verbindung mit der Gegenseite noch besteht
@@ -295,7 +308,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
     };
 
     // Wird verwendetet um REGISTER-NODE Pakete zu verarbeiteten
-    const _ENTER_PEER_HELLO_PACKAGE = (package_data) => {
+    const _ENTER_PEER_HELLO_PACKAGE = async (package_data) => {
         // Es wird geprüft ob das Peer bereits Initalisiert wurde
         if(_destinationPublicKey !== null || _connectionIsInited !== false) {
             dprinterror(10, ['An internal error has occurred, the connection XYZ'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['is closed for security reasons.']);
@@ -380,7 +393,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         }
 
         // Der DH-Schlüssel für die Sitzung wird erzeut
-        compute_shared_secret(Buffer.from(socketKeyPair.privateKey),  Buffer.from(package_data.pkey), (error, result) => {
+        compute_shared_secret(Buffer.from(socketKeyPair.privateKey), Buffer.from(package_data.pkey), (error, result) => {
             // Es wird geprüft ob ein fehler aufgetreten ist
             if(error !== null) {
                 dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
@@ -419,34 +432,10 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         });
     };
 
-    // Wird ausgeführt wenn die Verbindung geschlossen wurde
-    const _CLOSE_CONNECTION = () => {
-        // Es wird geprüft ob die Verbindung aufgebaut ist
-        if(!_isConnected) return;
-
-        // Speichert ab dass die Verbindung geschlossen wurde
-        _isConnected = false;
-
-        // Alle Timer werden gestoppt
-        if(_pingPongTimer !== null) clearTimeout(_pingPongTimer);
-        if(_initTimer !== null) clearTimeout(_initTimer);
-
-        // Es wird geprüft ob die Verbindung Initalisiert wurde
-        if(_connectionIsInited) {
-            localeNodeObject.unregisterConnection(_WS_SOCKET_FUNCTIONS, (result) => {
-                dprintok(10, ['The initialized connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['was closed']);
-                if(connectionClosedCallback !== null) { connectionClosedCallback(); return; }
-            });
-        }
-        else {
-            dprintok(10, ['The uninitialized connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['was closed']);
-        }
-    };
-
     // Nimt Pakete bei einer nicht Initalisierten Verbindung entgegen
-    const _ENTER_PACKAGE_ON_NOT_INITED_CONNECTION = (message) => {
+    const _ENTER_PACKAGE_ON_NOT_INITED_CONNECTION = async (message) => {
         // Es wird versucht das Paket sicher einzulesen
-        readJsonObjFromBytesSecure(message, (error, encodedObject) => {
+        readJsonObjFromBytesSecure(message, async (error, encodedObject) => {
             // Es wird geprüft ob ein Fehler aufgetreten ist
             if(error !== null) {
                 dprinterror(10, ['An error occurred in session', error], [colors.FgMagenta, _currentSessionId]);
@@ -472,14 +461,14 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
             }
 
             // Das HelloPackage wird weiterverarbeitet
-            _ENTER_PEER_HELLO_PACKAGE(encodedObject);
+            await _ENTER_PEER_HELLO_PACKAGE(encodedObject);
         });
     };
 
     // Nimt Pakete bei einer Initalisierten Verbindung entgegen
-    const _ENTER_PACKAGE_ON_INITED_CONNECTION = (plainMessage) => {
+    const _ENTER_PACKAGE_ON_INITED_CONNECTION = async (plainMessage) => {
         // Das Paket wird entschlüsselt
-        decrypt_package_symmetric(_sessionSharedSecret, plainMessage, (error, jsonEncodedPackage) => {
+        decrypt_package_symmetric(_sessionSharedSecret, plainMessage, async (error, jsonEncodedPackage) => {
             // Es wird geprüft ob ein Fehler aufgetreten ist
             if(error !== null) {
                 dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
@@ -513,7 +502,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                         wsConnObject.close();
                         return; 
                     }
-                    localeNodeObject.enterNextLayerPackage(jsonEncodedPackage, _WS_SOCKET_FUNCTIONS);
+                    await localeNodeObject.enterNextLayerPackage(jsonEncodedPackage, _WS_SOCKET_FUNCTIONS);
                     break;
                 case "req":
                     if (!_connectionIsInited) {
@@ -521,7 +510,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                         wsConnObject.close();
                         return; 
                     }
-                    localeNodeObject.enterCommandPackage(jsonEncodedPackage, _WS_SOCKET_FUNCTIONS);
+                    await localeNodeObject.enterCommandPackage(jsonEncodedPackage, _WS_SOCKET_FUNCTIONS);
                     break;
                 case "rreq":
                     if (!_connectionIsInited) {
@@ -529,7 +518,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                         wsConnObject.close();
                         return; 
                     }
-                    localeNodeObject.enterRoutingRegRespPackage(jsonEncodedPackage, _WS_SOCKET_FUNCTIONS);
+                    await localeNodeObject.enterRoutingRegRespPackage(jsonEncodedPackage, _WS_SOCKET_FUNCTIONS);
                     break;
                 case "rrr":
                     if (!_connectionIsInited) {
@@ -537,7 +526,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                         wsConnObject.close();
                         return; 
                     }
-                    localeNodeObject.enterRoutingRegRespPackage(jsonEncodedPackage, _WS_SOCKET_FUNCTIONS);
+                    await localeNodeObject.enterRoutingRegRespPackage(jsonEncodedPackage, _WS_SOCKET_FUNCTIONS);
                     break;
                 case "resp":
                     if (!_connectionIsInited) {
@@ -545,7 +534,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                         wsConnObject.close();
                         return; 
                     }
-                    localeNodeObject.enterResponsePackage(jsonEncodedPackage, _WS_SOCKET_FUNCTIONS);
+                    await localeNodeObject.enterResponsePackage(jsonEncodedPackage, _WS_SOCKET_FUNCTIONS);
                     break;
                 default:
                     dprinterror(10, ['Invalid packet received in session'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['session will be closed for security reasons.']);
@@ -553,6 +542,32 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                     return; 
             };
         });
+    };
+
+    // Wird ausgeführt wenn die Verbindung geschlossen wurde
+    const _CLOSE_CONNECTION = () => {
+        // Es wird geprüft ob die Verbindung aufgebaut ist
+        if(!_isConnected) return;
+
+        // Speichert ab dass die Verbindung geschlossen wurde
+        _isConnected = false;
+
+        // Alle Timer werden gestoppt
+        if(_pingPongTimer !== null) clearTimeout(_pingPongTimer);
+        if(_initTimer !== null) clearTimeout(_initTimer);
+
+        // Es wird geprüft ob die Verbindung Initalisiert wurde
+        if(_connectionIsInited) {
+            localeNodeObject.unregisterConnection(_WS_SOCKET_FUNCTIONS, (result) => {
+                dprintok(10, ['The initialized connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['was closed']);
+                if(connectionClosedCallback !== null) { connectionClosedCallback(); return; }
+            }).catch((e) => {
+                console.log(e);
+            });
+        }
+        else {
+            dprintok(10, ['The uninitialized connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['was closed']);
+        }
     };
 
     // Nimmt eintreffende Pakete entgegen
@@ -594,9 +609,14 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         // Debug Print
         dprintok(10, ['Data packet with'], [colors.FgMagenta, message.length], ['bytes received via the websocket connection'], [colors.FgMagenta, _currentSessionId]);
 
-        // Es wird geprüft ob die Verbindung bereits Initaliseirt wurde
-        if(_connectionIsInited === true) _ENTER_PACKAGE_ON_INITED_CONNECTION(message);
-        else _ENTER_PACKAGE_ON_NOT_INITED_CONNECTION(message);
+        // Dieser Code wird Asynchrone ausgeführt
+        (async() => {
+            // Es wird geprüft ob die Verbindung bereits Initaliseirt wurde
+            if(_connectionIsInited === true) await _ENTER_PACKAGE_ON_INITED_CONNECTION(message);
+            else await _ENTER_PACKAGE_ON_NOT_INITED_CONNECTION(message);
+        })().catch((e) => {
+            console.log(e);
+        })
     });
 
     // Wird ausgeführt, wenn die Verbindung geschlossen wurde
@@ -656,6 +676,11 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
     // Gibt die Kernfunktionen zurück
     return { isInited:() => _connectionIsInited, close:() => _CLOSE_CONNECTION }
+};
+
+// Baut eine Ausgehende Verbindung auf, wird bei bereits bestehenden Verbindungen verwendet
+const wsConnectJoin = (socketKeyPair, localeNodeObject, serverUrl, callback=null) => {
+
 };
 
 // Baut eine ausgehende Verbindung auf

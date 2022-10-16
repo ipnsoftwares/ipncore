@@ -90,7 +90,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     }
 
     // Startet den BOOT_NODE_REQUEST
-    const _START_BOOT_NODE_PEER_REQUEST = (connObj) => {
+    const _START_BOOT_NODE_PEER_REQUEST = async (connObj) => {
         // Es wird geprüft ob es bereits einen Offenen Vorgang für diesen Public Key gibt
         var currentOpenElement = _openPeerServices.get(connObj.getPeerPublicKey())
         if(currentOpenElement !== undefined) {
@@ -104,7 +104,8 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
 
             // Die bereits vorhandene Liste wird verwendet
             var openProcList = currentOpenElement;
-        } else { var openProcList = []; }
+        }
+        else { var openProcList = []; }
 
         // Es wird ein neuer Eintrag in die Liste hinzugefügt
         openProcList.push({ type:"boot_node_client" });
@@ -117,7 +118,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Es werden alle Verbindungen abgerufen und an die gegenseite Übermittelt
-    const _TRANSMIT_PEER_ENDPOINTS = (connObj) => {
+    const _TRANSMIT_PEER_ENDPOINTS = async (connObj) => {
         // Die Einzelnen EndPunkte werden extrahiert
         dprintok(10, ['Session'], [colors.FgMagenta, connObj.sessionId()], ['was registered for'], [colors.FgYellow, 'OUTBOUND_PERR_ENDPOINT_BRODCASTING']);
         for(const otem of Object.keys(_openOutEndPointConnectionTypes)) {
@@ -136,7 +137,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Nimt eintreffende Peer Response Pakete entgegeen
-    const _ENTER_PEER_ENDPOINT_PACKAGE = (ep, connObj) => {
+    const _ENTER_PEER_ENDPOINT_PACKAGE = async (ep, connObj) => {
         // Es wird geprüft ob die Funktion für diesen Node Aktiviert wurde
         const servicesElement = _openPeerServices.get(connObj.getPeerPublicKey());
         if(servicesElement === undefined) { console.log('UNRESOLVED_PEER_RESPONSE_RETRIVED'); connObj.close(); }
@@ -162,7 +163,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Startet den BOOT_NODE_PEER_SENDER Service
-    const _START_SEND_BOOT_NODE_PEER_RESPONSE = (connObj) => {
+    const _START_SEND_BOOT_NODE_PEER_RESPONSE = async (connObj) => {
         // Es wird geprüft ob es bereits einen Offenen Vorgang für diesen Public Key gibt
         var currentOpenElement = _openPeerServices.get(connObj.getPeerPublicKey())
         if(currentOpenElement !== undefined) {
@@ -186,11 +187,11 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         if(!_notifyPeerByNewOutPeerConnection.includes(connObj.getPeerPublicKey())) _notifyPeerByNewOutPeerConnection.push(connObj.getPeerPublicKey());
 
         // Die Daten werden der gegenseite mitgeteilt
-        _TRANSMIT_PEER_ENDPOINTS(connObj);
+        await _TRANSMIT_PEER_ENDPOINTS(connObj);
     };
 
     // Gibt ein Schlüsselpaar zurück, sofern es sich um einen Lokalen Schlüssel handelt
-    const _GET_KEYPAIR_THEN_PUBKEY_KNWON = (pubKey) => {
+    const _GET_KEYPAIR_THEN_PUBKEY_KNWON = async (pubKey) => {
         // Es wird geprüft ob es sich um den Primären Schlüssel handelt
         if(_localPrimaryKeyPair !== null) {
             if(Buffer.from(_localPrimaryKeyPair.publicKey).toString('hex') === pubKey) return _localPrimaryKeyPair;
@@ -222,12 +223,12 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Wird verwendet um einen neue Verbindung zu Registrieren
-    const _REGISTER_NEW_CONNECTION = (connObj, pprotFnc, callback) => {
+    const _REGISTER_NEW_CONNECTION = async (connObj, pprotFnc, callback) => {
         // Es wird geprüft ob es sich um ein Objekt handelt
-        if(typeof connObj !== 'object') { callback(true); return; }
+        if(typeof connObj !== 'object') { await callback(true); return; }
 
         // Es wird geprüft ob es bereits eine Verbindung mit dem Peer gibt
-        if(_peerPubKeys.includes(connObj.getPeerPublicKey())) { callback(false); return; }
+        if(_peerPubKeys.includes(connObj.getPeerPublicKey())) { await callback(false); return; }
 
         // Der Öffentliche Schlüssel des nodes wird hinzugefügt
         _peerPubKeys.push(connObj.getPeerPublicKey());
@@ -282,22 +283,20 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         };
 
         // Die Route wird im Routing Manager Hinzugefügt
-        (async() => {
-            try {
-                const nodeEPAddResult = await _rManager.addNodeEP(connObj.sessionId(), routingFunctions);
-                if(nodeEPAddResult !== true) { console.log('INVALID_RESULT_FROM_ROUTING_UNIT_BY_ADDING_EP'); callback(false); return; }
-                const addressEP = await _rManager.addRoute(connObj.sessionId(), connObj.getPeerPublicKey(), connObj.getPingTime());
-                if(addressEP !== true) { console.log('INVALID_RESULT_FROM_ROUTING_UNIT_BY_ADDING_ADDRESS'); callback(false); return; }
-            }
-            catch(e) { console.log(e); callback(false); return; }
+        try {
+            const nodeEPAddResult = await _rManager.addNodeEP(connObj.sessionId(), routingFunctions);
+            if(nodeEPAddResult !== true) { console.log('INVALID_RESULT_FROM_ROUTING_UNIT_BY_ADDING_EP'); await callback(false); return; }
+            const addressEP = await _rManager.addRoute(connObj.sessionId(), connObj.getPeerPublicKey(), connObj.getPingTime());
+            if(addressEP !== true) { console.log('INVALID_RESULT_FROM_ROUTING_UNIT_BY_ADDING_ADDRESS'); await callback(false); return; }
+        }
+        catch(e) { console.log(e); callback(false); return; }
 
-            // Der Vorgang wurde erfolgreich durchgeführt
-            callback(true);
-        })();
+        // Der Vorgang wurde erfolgreich durchgeführt
+        await callback(true);
     };
 
     // Wird verwendet um eine Registrierte Verbindung zu Entfernen
-    const _UNREGISTER_CONNECTION = (connObj, callback) => {
+    const _UNREGISTER_CONNECTION = async (connObj, callback) => {
         // Es wird geprüft ob es eine Verbindung mit diesem Node gibt
         if(!_peerPubKeys.includes(connObj.getPeerPublicKey())) { callback(false); return; }
 
@@ -361,13 +360,13 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Startet die Dienste eine Peers
-    const _START_PEER_SERVICES = (connObj, cfunction) => {
+    const _START_PEER_SERVICES = async (connObj, cfunction) => {
         // Die Verfügbaren Funktionen werden gestartet
         for(const otem of cfunction) {
             switch(otem) {
                 // Gibt an, dass es sich um einen BootNode handelt
                 case 'boot_node':
-                    _START_BOOT_NODE_PEER_REQUEST(connObj);
+                    await _START_BOOT_NODE_PEER_REQUEST(connObj);
                     break
                 // Es handelt sich um eine Unbekannte funktion
                 default:
@@ -378,7 +377,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Nimmt befehlspakete entgegen
-    const _ENTER_CMD_PACKAGES = (package, connObj) => {
+    const _ENTER_CMD_PACKAGES = async (package, connObj) => {
         /// Es wird geprüft ob die benötigten Datenfelder vorhanden sind
         if(!package.hasOwnProperty('cmd')) { console.log('Invalid command package'); connObj.close(); return; }
         switch(package.cmd) {
@@ -387,7 +386,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                 if(!localNodeFunctions.includes('boot_node')) { console.log('Invalid command package'); connObj.close(); return; }
 
                 // Der Vorgang wird gestartet
-                _START_SEND_BOOT_NODE_PEER_RESPONSE(connObj);
+                await _START_SEND_BOOT_NODE_PEER_RESPONSE(connObj);
 
                 // Das Paket wird gelöscht
                 delete package;
@@ -395,7 +394,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Nimmt eintreffende Response Pakete entgegen
-    const _ENTER_RESPONSE_PACKAGES = (package, connObj) => {
+    const _ENTER_RESPONSE_PACKAGES = async (package, connObj) => {
         // Es wird geprüft ob die benötigten Datenfelder vorhanden sind
         if(!package.hasOwnProperty('cmd')) { connObj.close(); console.log('AT4TR'); return; }
         if(!package.hasOwnProperty('data')) { connObj.close(); console.log('AT5TR'); return; }
@@ -406,7 +405,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         // Es wird geprüft ob es sich um einen gültigen Response befehl handelt
         switch(package.cmd) {
             case 'boot_node_endpoint':
-                _ENTER_PEER_ENDPOINT_PACKAGE(package.data, connObj);
+                await _ENTER_PEER_ENDPOINT_PACKAGE(package.data, connObj);
                 break
             default:
                 console.log('INVALID_RESPONSE_RETRIVED_UNKOWN_COMMAND');
@@ -448,7 +447,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Nimmt Pakete für Lokale Sockets entgegen
-    const _ENTER_LOCAL_SOCKET_PACKAGES = (layertpackage, connObj, sdeph, callback) => {
+    const _ENTER_LOCAL_SOCKET_PACKAGES = async (layertpackage, connObj, sdeph, callback) => {
         // Es wird geprüft ob es einen Offenen Lokalen Port gibt, welcher auf diese Verbindung wartet
         const retrivedSocketEp = _openSockets.get(layertpackage.body.ebody.body.dport);
         if(retrivedSocketEp !== undefined) {
@@ -488,9 +487,9 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Verarbeitet Pakete welche für den Aktuellen Node bestimmt sind
-    const _ENTER_LOCAL_LAYER2_PACKAGE = (packageFrame, connObj, retrivedKeyPair, callback) => {
+    const _ENTER_LOCAL_LAYER2_PACKAGE = async (packageFrame, connObj, retrivedKeyPair, callback) => {
         // Der Paketinhalt wird entschlüsselt
-        decrypt_anonymous_package(packageFrame.body.ebody, retrivedKeyPair.privateKey, retrivedKeyPair.publicKey, (error, decryptedPackage) => {
+        decrypt_anonymous_package(packageFrame.body.ebody, retrivedKeyPair.privateKey, retrivedKeyPair.publicKey, async (error, decryptedPackage) => {
             // Es wird geprüft ob ein Fehler aufgetreten ist
             if(error !== null) { callback(error); return; }
 
@@ -570,7 +569,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                 if(verifyLayerThreePackage(decryptedPackage) === false) { callback(false); return; }
 
                 // Das Paket wird weiterverabeitet
-                _ENTER_LOCAL_SOCKET_PACKAGES({ ...packageFrame, body:{ ebody:decryptedPackage } }, connObj, endPointHash, () => {
+                await _ENTER_LOCAL_SOCKET_PACKAGES({ ...packageFrame, body:{ ebody:decryptedPackage } }, connObj, endPointHash, () => {
                     callback(true);
                 });
             }
@@ -578,7 +577,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Nimt eintreffende Pakete entgegen
-    const _ENTER_RECIVED_SECOND_LAYER_PACKAGES = (package, connObj) => {
+    const _ENTER_RECIVED_SECOND_LAYER_PACKAGES = async (package, connObj) => {
         // Es wird geprüft ob es sich um ein Gültiges Layer 2 Paket handelt
         if(verifyFirstSecondLayerPackageBase(package) !== true) {
             console.log('INVALID_SECOND_LAYER_PACKAGE', package.frame);
@@ -595,26 +594,20 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         dprintok(10, ['Package'], [colors.FgRed, get_hash_from_dict(package.frame).toString('base64')], ['recived over'], [colors.FgMagenta, connObj.sessionId()], ['from ', colors.FgYellow, package.frame.source]);
 
         // Es wird geprüft ob es sich bei dem Empfänger um eine Lokale Adresse handelt, wenn nicht wird das Paket an den Routing Manager übergeben
-        const fKeyPair = _GET_KEYPAIR_THEN_PUBKEY_KNWON(package.frame.destination);
+        const fKeyPair = await _GET_KEYPAIR_THEN_PUBKEY_KNWON(package.frame.destination);
         if(fKeyPair !== null && fKeyPair !== false) {
             // Es wird geprüft ob es für die Quelle eine Route gibt
-            _rManager.hasRoutes(package.frame.source, connObj.sessionId())
-            .then(async (r) => {
-                // Sollte die Route nicht bekannt sein, so wird sie dem Routing Manager hinzugefügt
-                if(!r) { await _rManager.addRoute(connObj.sessionId(), package.frame.source, null, 60000); }
+            const rootCheck = await _rManager.hasRoutes(package.frame.source, connObj.sessionId());
+            if(rootCheck !== true) { await _rManager.addRoute(connObj.sessionId(), package.frame.source, null, 60000); }
 
-                // Der Routing Manager wird Signalisiert das ein Paket emfpangen wurde
-                await _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination, connObj);
+            // Der Routing Manager wird Signalisiert das ein Paket emfpangen wurde
+            await _rManager.signalPackageReciveFromPKey(package.frame.source, package.frame.destination, connObj);
 
-                // Das Paket wird Lokal weiter verarbeitet
-                _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, fKeyPair, (packageState) => {
-                    // Es wird geprüft ob das Paket erfolgreich verarbeitet wurde
-                    if(packageState !== true) {
-                        // Es wird geprüft ob eine Verbindung mit der gegenseite besteht
-
-                    }
-                });
-            })
+            // Das Paket wird Lokal weiter verarbeitet
+            await _ENTER_LOCAL_LAYER2_PACKAGE(package.frame, connObj, fKeyPair, async (packageState) => {
+                // Es wird geprüft ob das Paket erfolgreich verarbeitet wurde
+                if(packageState !== true) {  }
+            });
         }
         else {
             // Das Paket wird an die Routing Unit übergeben
@@ -623,7 +616,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Sendet ein Routing Response an einen Peer
-    const _SEND_ROUTING_RESPONSE = (oneTimeAddressRequest, timeout, connObj, procId, retrLocalKeyPair, callback) => {
+    const _SEND_ROUTING_RESPONSE = async (oneTimeAddressRequest, timeout, connObj, procId, retrLocalKeyPair, callback) => {
         // Es wird ein OpenRouteResponseSessionPackage gebaut
         const openRouteSessionPackage = {
             type:'rrr',                                         // Gibt an dass es sich um ein Routing Request Package handelt
@@ -647,7 +640,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Nimmt eintreffende Routing Request Pakete entgegen
-    const _ENTER_ROUTING_REG_RESP_PACKAGE = (package, connObj) => {
+    const _ENTER_ROUTING_REG_RESP_PACKAGE = async (package, connObj) => {
         // Es wird geprüft ob die benötigten Datenfelder vorhanden sind
         if(!package.hasOwnProperty('timeout')) { connObj.close(); console.log('AT1TZ'); return; }
         if(!package.hasOwnProperty('orn')) { connObj.close(); console.log('AT3TZ'); return; }
@@ -687,8 +680,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                 }
 
                 // Dem Vorgang wird signalisiert dass eine Antwort eingetroffen ist
-                resolvedOpenProcs.retrvPackage(toutTime, connObj, package)
-                .catch((c) => { console.log('UNKOWN_INTERNALL_ERROR_BY_RUNNING_ROUTE_RESPONSE_ADDING', c); return; });
+                await resolvedOpenProcs.retrvPackage(toutTime, connObj, package)
                 return;
             }
 
@@ -740,7 +732,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                     var newTTL = newTime - preTTL;
 
                     // Das Antwortpaket wird an den Aktuellen Peer zurückgesendet
-                    _SEND_ROUTING_RESPONSE(package.orn, newTTL, nconnobj, reqProcId, retivedKeyPair, (r) => {
+                    await _SEND_ROUTING_RESPONSE(package.orn, newTTL, nconnobj, reqProcId, retivedKeyPair, (r) => {
                         // Es wird Signalisiert dass das Paket an den Peer gesendet wurde
                         const tempRObj = _openAddressRouteRequestsPack.get(reqProcId);
                         if(tempRObj !== undefined) {
@@ -787,7 +779,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                 var newTTL = toutTime - preTTL;
 
                 // Das Antwortpaket wird an den Aktuellen Peer zurückgesendet
-                _SEND_ROUTING_RESPONSE(package.orn, newTTL, connObj, reqProcId, retivedKeyPair, (r) => {
+                await _SEND_ROUTING_RESPONSE(package.orn, newTTL, connObj, reqProcId, retivedKeyPair, (r) => {
                     // Es wird Signalisiert dass das Paket an den Peer gesendet wurde
                     const tempRObj = _openAddressRouteRequestsPack.get(reqProcId);
                     if(tempRObj !== undefined) {
@@ -807,7 +799,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                     dprintok(10, ['The routing response packet for event'], [colors.FgCyan, basedReqProcId], ['was transferred to session'], [colors.FgMagenta, connObj.sessionId(),]);
                 });
             }
-            else (async() => {
+            else {
                 // Wird ausgeführt sollte eine Antwort eingetroffen sein
                 const _AFTER_RECIVCE_RESPONSE = async (rpackage, connObjX) => {
                     // Es wird geprüft ob der Vorgang noch geöffnet ist
@@ -971,8 +963,9 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                 }
 
                 // Das Paket wird im Netzwerk gebrodcastet
-                _BRODCAST_ADDRESS_ROUTE_REQUEST_PACKAGE(package.addrh, toutTime, connObj, processStartingTime, package.orn, _IS_KNOWN_SESSION, _ENTER_SEND_PACKAGE_SESSION_ID, _FIRST_PACKAGE_WAS_SEND, retrivedOnlyPeersList);
-            })();
+                _BRODCAST_ADDRESS_ROUTE_REQUEST_PACKAGE(package.addrh, toutTime, connObj, processStartingTime, package.orn, _IS_KNOWN_SESSION, _ENTER_SEND_PACKAGE_SESSION_ID, _FIRST_PACKAGE_WAS_SEND, retrivedOnlyPeersList)
+                .catch((E) => {});
+            }
         }
         else if(package.type === 'rrr') {
             // Es wird geprüft ob die benötigten Datenfelder vorhanden sind
@@ -1009,14 +1002,13 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             }
 
             // Dem Vorgang wird signalisiert dass eine Antwort eingetroffen ist
-            openProcess.retrvPackage(package, connObj)
-            .catch((c) => { console.log('UNKOWN_INTERNALL_ERROR_BY_RUNNING_ROUTE_RESPONSE_ADDING', c); return; })
+            await openProcess.retrvPackage(package, connObj)
         }
         else { connObj.close(); console.log('INVALID_ROUTING_REG_RESP_PACKAGE'); return; }
     };
 
     // Sendet ein AddressRouteRequestPackage an alle Netzwerkteilnehmer
-    const _BRODCAST_ADDRESS_ROUTE_REQUEST_PACKAGE = (addressHash, timeout, sourceConnection, processStartingTime, randSessionId, isKnownSession, enterSendPackageSessionId, firstPackageSendCallback, onlyPeers=[], callback=null) => {
+    const _BRODCAST_ADDRESS_ROUTE_REQUEST_PACKAGE = async (addressHash, timeout, sourceConnection, processStartingTime, randSessionId, isKnownSession, enterSendPackageSessionId, firstPackageSendCallback, onlyPeers=[], callback=null) => {
         // Es werden alle Verfügabren Peers abgerufen
         var retrivedPeers = [];
         if(onlyPeers.length > 0) {
@@ -1057,7 +1049,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
 
         // Wird hintereinander ausgeführt bis alle Pakete versendet wurden
         var istFirstPackageWasSend = true;
-        const _PACKAGE_SEND_LOOP_FUNCTION = () => {
+        const _PACKAGE_SEND_LOOP_FUNCTION = async () => {
             // Es wird geprüft ob weitere Peers verfügbar sind
             if(retrivedPeers.length === 0) {
                 if(callback !== null) callback();
@@ -1072,7 +1064,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
 
             // Es wird geprüft ob an diese Sitzung bereits etwas gesendet wurde
             if(isKnownSession !== undefined && isKnownSession !== null) {
-                if(isKnownSession(firstExtractedPeer.sessionId()) === true) { _PACKAGE_SEND_LOOP_FUNCTION(); return; }
+                if(isKnownSession(firstExtractedPeer.sessionId()) === true) { await _PACKAGE_SEND_LOOP_FUNCTION(); return; }
             }
 
             // Es wird ermittelt wielange es gedauert hat
@@ -1099,12 +1091,12 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                 }
 
                 // Das Paket wird an den nächsten Peer gesendet
-                _PACKAGE_SEND_LOOP_FUNCTION();
+                _PACKAGE_SEND_LOOP_FUNCTION().catch((E) => {});
             });
         };
 
         // Das versenden der Daten wird gestartet
-        _PACKAGE_SEND_LOOP_FUNCTION();
+        await _PACKAGE_SEND_LOOP_FUNCTION();
     };
 
     // Gibt Lokal Verfügbare Server Ports aus
@@ -1410,7 +1402,8 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             _openAddressRouteRequestsPack.set(finalProcId, ENTER_RESOLVED_PACKAGE_OBJ);
 
             // Das Paket wird an alle im Netzwerk gebrodcastet
-            _BRODCAST_ADDRESS_ROUTE_REQUEST_PACKAGE(doubleHash, timeout, null, currentTimestamp, randSessionId, null, PACKAGE_SEND_EVENT, FIRST_PACKAGE_SEND_EVENT, []);
+            _BRODCAST_ADDRESS_ROUTE_REQUEST_PACKAGE(doubleHash, timeout, null, currentTimestamp, randSessionId, null, PACKAGE_SEND_EVENT, FIRST_PACKAGE_SEND_EVENT, [])
+            .catch((E) => {})
         };
 
         // Führt die Wichtigsten Dinge in einem asychronen Codeblock aus

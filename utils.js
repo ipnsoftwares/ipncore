@@ -21,11 +21,22 @@ function parsIpAddress(ipStr) {
     }
     const ver = ipaddr.parse(remoteAddress).kind();
     return { adr:remoteAddress, ver:ver };
-}
+};
+
+// Gibt on ob es sich um eine ASYNC Funktion handelt
+function isAsyncFunction(value) {
+    if(value === undefined || value === null) return false
+    if(value.constructor === undefined || value.constructor === null) return false;
+    if(value.constructor.name === undefined || value.constructor.name === null) return false;
+    if(value.constructor.name === 'AsyncFunction') return true;
+    else return false;
+};
 
 
+// Die Daten werden Exportiert
 module.exports = {
     isNodeOnPCLaptopOrEmbeddedLinuxSystem:isNodeOnPCLaptopOrEmbeddedLinuxSystem,
+    isAsyncFunction:isAsyncFunction,
     parsIpAddress:parsIpAddress,
     getDataUnit:getDataUnit
 }
