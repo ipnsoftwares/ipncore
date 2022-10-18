@@ -31,6 +31,29 @@ function readJsonObjFromBytesSecure(byteObj, callback) {
     }
 };
 
+// Gibt an ob es sich um ein Routing Request oder ein Routing Response Paket handelt
+function isValidateRoutingRequestOrResponsePackage(packageObject) {
+    // Es wird geprüft ob es sich um ein Objekt handelt
+    if(typeof packageObject !== 'object') return false;
+
+    // Es wird geprüft ob die benötigten Datenfelder vorhanden sind
+    if(packageObject.timeout === undefined) return false;
+    if(packageObject.orn === undefined) return false;
+    if(packageObject.type === undefined) return false;
+
+    // Es wird geprüft ob es sich um gültige Datentypen handelt
+    if(packageObject.type !== 'rreq' && packageObject.type !== 'rrr') return false;
+    if(typeof packageObject.timeout !== 'number') return false;
+    if(typeof packageObject.type !== 'string') return false;
+
+    // Es wird geprüft ob die Ablaufzeit korrekt ist
+    if(packageObject.timeout <= 0) return false;
+    if(packageObject.timeout > 120000) return false;
+
+    // Es handelt sich um ein gültiges Paket
+    return true;
+};
+
 // Gibt an ob es sich um ein gültiges Layer 1 Paket handelt
 function isValidateHelloPackageLayerOne(packageObject) {
     // Es wird geprüft ob das Baispaket korrekt ist
@@ -158,4 +181,5 @@ module.exports = {
     validateLayerOneBasePackage:validateLayerOneBasePackage,
     isValidateHelloPackageLayerOne:isValidateHelloPackageLayerOne,
     verifyFirstSecondLayerPackageBase:verifyFirstSecondLayerPackageBase,
+    isValidateRoutingRequestOrResponsePackage:isValidateRoutingRequestOrResponsePackage
 }

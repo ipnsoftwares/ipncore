@@ -1,11 +1,10 @@
 # 🌍 **Interplanetary Network (IPN) -- Milestone 2** 👽
 
 [![made-with-javascript](https://img.shields.io/badge/Made%20with-JavaScript-1f425f.svg)](https://www.javascript.com)
-[![GitHub branches](https://badgen.net/github/branches/Naereen/Strapdown.js)](https://github.com/fluffelpuff/ipncore/)
-[![GitHub commits](https://badgen.net/github/commits/Naereen/Strapdown.js)](https://github.com/fluffelpuff/ipncore/commit/)
-[![GitHub forks](https://img.shields.io/github/forks/Naereen/StrapDown.js.svg?style=social&label=Fork&maxAge=2592000)](https://github.com/fluffelpuff/ipncore/network/)
+[![GitHub branches](https://badgen.net/github/branches/Naereen/Strapdown.js)](https://github.com/ipnsoftwares/ipncore)
+[![GitHub commits](https://badgen.net/github/commits/Naereen/Strapdown.js)](https://github.com/ipnsoftwares/ipncorecommit/)
 
-[![GitHub license](https://badgen.net/github/license/Naereen/Strapdown.js)](https://github.com/Naereen/StrapDown.js/blob/master/LICENSE)
+[![GitHub license](https://badgen.net/github/license/Naereen/Strapdown.js)](https://github.com/ipnsoftwares/ipncore/LICENSE)
 [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/fluffelpuffcode)
 
 
@@ -16,17 +15,17 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
 
 
 ## 👍 **The following functions are supported**
-- [Decentralized routing protocol (Artemis Protocol | INIP0001)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0001_de.mediawiki)
-- [Bootnode support and hardcoded swarm nodes to initialize the network (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
+- Decentralized routing protocol (Artemis Protocol | INIP0001)
+- Bootnode support and hardcoded swarm nodes to initialize the network (INIP0003)
 
 
 ## 🌍 **Supported network protocols**
-- [Websocket (WS/WSS) (INIP0002)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
+- Websocket (WS/WSS)
 
 
 ## 🔐 **Support cryptographic methods**
-- [ED25519 / Curve25519 (INIP0004)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
-- [Chacha20-Poly1305 (INIP0004)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0004_de.mediawiki)
+- ED25519 / Curve25519
+- xChaCha20-Poly1305
 
 
 ## 🚀🍾 **Communities** 
@@ -34,36 +33,36 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
 
 
 ## 📚 **Available libraries / API's**
-| Language                                                      | State               | Improvement Proposal                                                                              | Full Library |
-| ---                                                           | ---                 | ---                                                                                               | ---          |
-| [NodeJs / Javascript](https://github.com/fluffelpuff/ipncore) | 👩‍💻 In progress      |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ✅ Yes    |
-| Flutter / Dart                                                | 🚫 Work not started |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ❌ No     |
-| C / C++                                                       | 🚫 Work not started |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ❌ No     |
-| [Python](https://github.com/fluffelpuff/ipnpylib)             | 👩‍💻 In progress      |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ❌ No     |
-| Rust                                                          | 🚫 Work not started |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ❌ No     |
-| C#                                                            | 🚫 Work not started |     [INIP0016](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)     |     ❌ No     |
+| Language                                                       | State               | Full Library |
+| ---                                                            | ---                 | ---          |
+| [NodeJs / Javascript](https://github.com/ipnsoftwares/ipncore) | 👩‍💻 In progress      |     ✅ Yes    |
+| Flutter / Dart                                                 | 🚫 Work not started |     ❌ No     |
+| C / C++                                                        | 🚫 Work not started |     ❌ No     |
+| [Python](https://github.com/ipnsoftwares/ipnpylib)             | 👩‍💻 In progress      |     ❌ No     |
+| Rust                                                           | 🚫 Work not started |     ❌ No     |
+| C#                                                             | 🚫 Work not started |     ❌ No     |
+
+
+## ✅ **To do list**
+- [ ] [(₿) Bitcoin support](https://en.bitcoin.it/wiki/Main_Page)
+- [ ] DDoS Protection (INIP0013)
+- [ ] DNS Node seeding (INIP0003)
+- [ ] Uniform address format (INIP0010)
+- [x] [API / IPC Protocol / Support (IPN0016)
+- [ ] Commandline Console for IPN-Core Service
+- [ ] Power Routing over Distributed hash table (DHT)
+- [ ] Optimization for mobile devices
+- [ ] Network protocols:
+  - [ ] [UDP](https://en.wikipedia.org/wiki/User_Datagram_Protocol)
+  - [ ] [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security)
+  - [ ] [TOR](https://en.wikipedia.org/wiki/Tor_(network))
+  - [ ] [i2p](https://en.wikipedia.org/wiki/I2P)
 
 
 ## 💲 **Support me**
 - **BTC**: [bc1qy5pv8kx23vxnpfxx0y5nayl8220zzl6phu7zx7](https://www.blockchain.com/btc/address/bc1qy5pv8kx23vxnpfxx0y5nayl8220zzl6phu7zx7)
 - **ETH**: [0xF0b7D4B2c21F4FE3645dBB312B8C2e08220B7f0d](https://etherscan.io/address/0xF0b7D4B2c21F4FE3645dBB312B8C2e08220B7f0d)
 
-
-## ✅ **To do list**
-- [ ] [(₿) Bitcoin support](https://en.bitcoin.it/wiki/Main_Page)
-- [ ] [DDoS Protection (INIP0013)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0013_de.mediawiki)
-- [ ] [DNS Node seeding (INIP0003)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0003_de.mediawiki)
-- [ ] [Uniform address format (INIP0010)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0010_de.mediawiki)
-- [ ] [API / IPC Protocol / Support (IPN0016)](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0016_de.mediawiki)
-- [ ] Commandline Console for IPN-Core Service
-- [ ] Power Routing over Distributed hash table (DHT)
-- [ ] Optimization for mobile devices
-- [ ] Network protocols:
-  - [x] [Websocket](https://en.wikipedia.org/wiki/WebSocket) | [INIP0002](https://github.com/fluffelpuff/ipncore/blob/main/inips/inip_0002_de.mediawiki)
-  - [ ] [UDP](https://en.wikipedia.org/wiki/User_Datagram_Protocol)
-  - [ ] [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security)
-  - [ ] [TOR](https://en.wikipedia.org/wiki/Tor_(network))
-  - [ ] [i2p](https://en.wikipedia.org/wiki/I2P)
 
 ## 😶 **Dependencies**
 - @noble/hashes = 1.1.3

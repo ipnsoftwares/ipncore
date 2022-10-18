@@ -169,7 +169,7 @@ function mergeDuplexSocketConnections(nodeObj, inputSocket, outputSocket, procId
         }
         // Es wird geprüft ob es sich um ein POST-Request handelt
         else if(readedData.data.type === 'post') {
-
+            console.log(readedData)
         }
         // Es wird geprüft ob es sich um ein Socket Vorgang handelt
         else if(readedData.data.type === 'socket') {

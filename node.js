@@ -1,5 +1,5 @@
 const { get_hash_from_dict, decrypt_anonymous_package, encrypt_anonymous_package, verify_digest_sig, sign_digest, create_deterministic_keypair, convert_pkey_to_addr } = require('./crypto');
-const { verifyLayerThreePackage, verifyFirstSecondLayerPackageBase } = require('./lpckg');
+const { verifyLayerThreePackage, verifyFirstSecondLayerPackageBase, isValidateRoutingRequestOrResponsePackage } = require('./lpckg');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { isNodeOnPCLaptopOrEmbeddedLinuxSystem } = require('./utils');
 const { createLocalSocket, SockTypes } = require('./socket');
@@ -641,17 +641,18 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
 
     // Nimmt eintreffende Routing Request Pakete entgegen
     const _ENTER_ROUTING_REG_RESP_PACKAGE = async (package, connObj) => {
-        // Es wird geprüft ob die benötigten Datenfelder vorhanden sind
-        if(!package.hasOwnProperty('timeout')) { connObj.close(); console.log('AT1TZ'); return; }
-        if(!package.hasOwnProperty('orn')) { connObj.close(); console.log('AT3TZ'); return; }
-
-        // Es wird geprüft ob die Ablaufzeit korrekt ist
-        if(package.timeout <= 0) { connObj.close(); console.log('AT7TZ'); return; }
-        if(package.timeout > 120000) { connObj.close(); console.log('AT8TZ', package); return; }
+        // Es wird geprüft ob es sich um korrektes Routing Request oder Routing Response Package handelt
+        if(isValidateRoutingRequestOrResponsePackage(package) !== true) {
+            console.log('INVALID_PACKAGE');
+            return;
+        }
 
         // Es wird geprüft ob die Timeout grenze erreicht wurde
         const toutTime = package.timeout - connObj.getPingTime();
-        if(toutTime <= 0) { console.log('PACKAGE_DROPED_TIMEOUT'); return; }
+        if(toutTime <= 0) {
+            console.log('PACKAGE_DROPED_TIMEOUT');
+            return; 
+        }
 
         // Speichert die Aktuelle Startzeit des Prozzeses ab
         const processStartingTime = Date.now();
@@ -1004,7 +1005,11 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             // Dem Vorgang wird signalisiert dass eine Antwort eingetroffen ist
             await openProcess.retrvPackage(package, connObj)
         }
-        else { connObj.close(); console.log('INVALID_ROUTING_REG_RESP_PACKAGE'); return; }
+        else {
+            connObj.close();
+            console.log('UNKOWN_ERROR');
+            return; 
+        }
     };
 
     // Sendet ein AddressRouteRequestPackage an alle Netzwerkteilnehmer
