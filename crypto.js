@@ -12,6 +12,26 @@ const cbor = require('cbor');
 // Speichert das Sodium Modell ab
 let _crypto_sodium_modul = null;
 
+// Erzeugt einen Dopeltten SHA3 Hash
+function double_sha3_compute(baseValue) {
+    // Die Daten werden umgedreht
+    const reversedData = Buffer.from([...baseValue].reverse());
+
+    // Die Daten werden zusammengeführt
+    const comparedData = Buffer.from([...baseValue, ...reversedData]);
+
+    // Der erste Hash wird erzeut
+    const reservedDoubbleHash = new SHA3(384);
+    reservedDoubbleHash.update(comparedData);
+
+    // Der Finale Hash wird erzeugt
+    const finalHash = new SHA3(256);
+    finalHash.update(reservedDoubbleHash.digest());
+
+    // Der Hash wird zurückgegeben
+    return finalHash.digest();
+};
+
 // Erstellt einen Hash aus einem Dict
 function get_hash_from_dict(jsonDict) {
     // Die Inahlte des Objektes werden Sortiert
@@ -263,6 +283,7 @@ module.exports = {
     compute_shared_secret:compute_shared_secret,
     convert_pkey_to_addr:convert_pkey_to_addr,
     convert_addr_to_pkey:convert_addr_to_pkey,
+    double_sha3_compute:double_sha3_compute,
     get_hash_from_dict:get_hash_from_dict,
     verify_digest_sig:verify_digest_sig,
     encrypt_anonymous:encrypt_anonymous,

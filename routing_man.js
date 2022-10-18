@@ -1,7 +1,8 @@
+const { get_hash_from_dict, convert_pkey_to_addr, generate_ed25519_keypair, compute_shared_secret, create_deterministic_keypair, double_sha3_compute } = require('./crypto');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
-const { get_hash_from_dict, convert_pkey_to_addr } = require('./crypto');
 const consensus = require('./consensus');
 const EventEmitter = require('events');
+const { SHA3 } = require('sha3');
 const crypto = require('crypto');
 
 
@@ -49,6 +50,9 @@ const routingManager = () => {
 
     // Speichert ab wann das letzte Paket an die Adresse XYZ über die Sitzung XYZ gesendet wurde
     var lastPackageSendToAddress = new Map();
+
+    // Speichert alle Adressen und ihre Suchvorgänge ab und ordnet die SessionID zu
+    var searchingNetworkAddressesToSearchSessionId = new Map();
 
     // Wird verwendet um eine Route hinzuzufügen
     const _addRotute = async (sessionId, publicKey, routeInitTime, autoDeleteTime=null) => {
@@ -757,6 +761,101 @@ const routingManager = () => {
         setTimeout(_ROUTING_MAN_THR_TIMER, 10);
     };
 
+    // Gibt X Nodes aus mit denen bereits eine Verbindung über längere Zeit besteht
+    const _GET_BASE_X_CONNECTIONS = async (useForSearchRoute) => {
+        // Es werden alle Verbindungen herausgefilter
+        let readedConnections = [];
+        for(const otem of sessionEndPoints.keys()) { 
+            const tvalue = sessionEndPoints.get(otem)
+            if(tvalue === undefined) continue;
+            readedConnections.push(tvalue); 
+        }
+
+        // Die Verbindungen werden nach geschwindigkeit sortiert
+        let speedSortedConnections = readedConnections.sort(async (a, b) => { return a.baseIo.getInitialTime() + b.baseIo.getInitialTime(); });
+
+        // Die ersten 8 Verbindungen welche Verbunden
+        let finalList = [];
+        for(const otem of speedSortedConnections) {
+            finalList.push(otem);
+            if(finalList.length >= 8) break;
+        }
+
+        // Die Liste wird zurückgegebn
+        return finalList;
+    };
+
+    // Wird verwendet um eine neue Adresse im Netzwerk zu suchen (Artemis Protokoll)
+    const _artemisProNetworkWideAddressSearch = async (searchedNetworkAddress, callback) => {
+        console.log('Search', searchedNetworkAddress, 'in global network');
+
+        // Es wird geprüft ob es sich um eine bekannte Route handelt
+        const localRouteDbQueryResult = await pkeyToSessionEP.get(searchedNetworkAddress);
+        if(localRouteDbQueryResult !== undefined) {
+            // Es handelt sich um eine bekannte Adresse
+            console.log('IS_KNOWN_ADDRESS');
+            return;
+        }
+
+        // Es wird geprüft ob es bereits einen Vorgang für diese Adresse gibt
+        const openAddressSearchProcess = await searchingNetworkAddressesToSearchSessionId.get(searchedNetworkAddress);
+        if(openAddressSearchProcess !== undefined) {
+            console.log('ALWAYS_SEARCHING');
+            return;
+        }
+
+        // Es wird ein OneTime Searching Process Key erzeugt
+        const tempKPair = generate_ed25519_keypair();
+
+        // Die Adresse wird eingelesen
+        const encodedAddress = Buffer.from(searchedNetworkAddress, 'hex');
+
+        // Aus der Empfänger Adresse und dem Privaten TempKey wird ein DH Schlüssel erzeugt
+        compute_shared_secret(tempKPair.privateKey, encodedAddress, (error, result) => {
+            // Aus dem DH Schlüssel wird ein neues Schlüsselpaar abgeleitet
+            const tempKeyPair = create_deterministic_keypair(result, "0/0/0");
+
+            // Es wird ein Reserverd Doppel Hash aus der gesuchten Adresse erzeugt
+            const reservedHash = double_sha3_compute(encodedAddress);
+
+            // Die 8 Nodes mit denen am längsten eine Verbindung besteht werden herausgesucht
+            _GET_BASE_X_CONNECTIONS().then(async (totalFoundPeers) => {
+                // Es wird geprüft ob eine Verbindung abgerufen werden konnte
+                if(totalFoundPeers.length === 0) {
+                    console.log('NO_ANOTHER_NODES');
+                    return;
+                }
+
+                // Wird ausgeführt um das Routing Request Paket an die Gegenseite zu übermitteln
+                const _TRANSMIT_REQUEST = async () => {
+                    // Speichert ab, an wieivle Peers das Paket berits erfolgreich gesendet wurde
+                    let totalSendPackages = 0;
+
+                    // Diese Funktion wird verwendet um das eigentliche Paket zu bauen und abzusenden
+                    const _transpckg = async () => {
+                        // Das Paket wird gebaut
+                        const preRequestPackage = {
+                            saddr:Buffer.from(reservedHash),
+                            proc_sid:Buffer.from(tempKPair.publicKey),
+                            options:{ wish_prot:"ws+tor", timeout:1200 },
+                            phantom_key:Buffer.from(tempKeyPair.publicKey)
+                        };
+
+
+                        
+                        console.log(preRequestPackage);
+                    };
+
+                    // Das Senden des Paketes wird gestartet
+                    await _transpckg();
+                };
+
+                // Der Sende Vorgang wird gestartet
+                await _TRANSMIT_REQUEST();
+            });
+        });
+    };
+
     // Der Routing Timer wird gestartet
     setTimeout(_ROUTING_MAN_THR_TIMER, 10);
 
@@ -773,7 +872,8 @@ const routingManager = () => {
         signalPackageReciveFromPKey:_signalPackageReciveFromPKey,
         enterOutgoingLayer2Packages:_enterOutgoingLayer2Packages,
         enterIncommingLayer2Packages:_enterIncommingLayer2Packages,
-        signalPackageTransferedToPKey:_signalPackageTransferedToPKey
+        signalPackageTransferedToPKey:_signalPackageTransferedToPKey,
+        searchAddressRoute:_artemisProNetworkWideAddressSearch
     };
 };
 

@@ -54,6 +54,55 @@ function isValidateRoutingRequestOrResponsePackage(packageObject) {
     return true;
 };
 
+// Gibt an ob es sich um ein gültiges Routing Request Paket handelt
+function isValidateRoutingRequestPackage(packageObj) {
+    // Es wird geprüft ob das Routing Request / packageObj Paket auf der Basis korrekt ist
+    if(isValidateRoutingRequestOrResponsePackage(packageObj) !== true) return false;
+
+    // Es wird geprüft ob der Pakettyp zutreffend ist
+    if(packageObj.type !== 'rreq') return false;
+
+    // Speichert alle gültigen Felder ab
+    const allowedFields = ['version', 'type', 'orn', 'addrh', 'timeout', 'sig'];
+
+    // Es wird geprüft ob alle gültigen Feder vorhanden sind
+    for(const otem of Object.keys(packageObj)) { if(allowedFields.includes(otem) === false) { console.log(otem); return false; } }
+    for(const otem of allowedFields) { if(Object.keys(packageObj).includes(otem) === false) { return false; } }
+
+    // Es wird geprüft ob die Länge des Addresses Hashes sowie des Einaml Schlüssels korrekt sind
+    if(packageObj.addrh.length !== 64) return false;
+    if(packageObj.orn.length !== 64) return false;
+
+    // Es handelt sich um ein gültiges Paket
+    return true;
+};
+
+// Gibt an ob es sich um ein gültiges Routing Response Paket handelt
+function isValidateRoutingResponsePackage(packageObj) {
+    // Es wird geprüft ob das Routing Request / packageObj Paket auf der Basis korrekt ist
+    if(isValidateRoutingRequestOrResponsePackage(packageObj) !== true) return false;
+
+    // Es wird geprüft ob der Pakettyp zutreffend ist
+    if(packageObj.type !== 'rrr') return false;
+
+    // Speichert alle gültigen Felder ab
+    const allowedFields = ['version', 'type', 'orn', 'addrsig', 'addr', 'timeout', 'sig'];
+
+    // Es wird geprüft ob alle gültigen Feder vorhanden sind
+    for(const otem of Object.keys(packageObj)) { if(allowedFields.includes(otem) === false) { console.log(otem); return false; } }
+    for(const otem of allowedFields) { if(Object.keys(packageObj).includes(otem) === false) { return false; } }
+
+    console.log(packageObj)
+
+    // Es wird geprüft ob die Länge des Addresses Hashes sowie des Einaml Schlüssels korrekt sind
+    if(packageObj.addrsig.length !== 128) return false;
+    if(packageObj.addr.length !== 32) return false;
+    if(packageObj.orn.length !== 64) return false;
+
+    // Es handelt sich um ein gültiges Objekt
+    return true;
+};
+
 // Gibt an ob es sich um ein gültiges Layer 1 Paket handelt
 function isValidateHelloPackageLayerOne(packageObject) {
     // Es wird geprüft ob das Baispaket korrekt ist
@@ -180,6 +229,8 @@ module.exports = {
     readJsonObjFromBytesSecure:readJsonObjFromBytesSecure,
     validateLayerOneBasePackage:validateLayerOneBasePackage,
     isValidateHelloPackageLayerOne:isValidateHelloPackageLayerOne,
+    isValidateRoutingRequestPackage:isValidateRoutingRequestPackage,
+    isValidateRoutingResponsePackage:isValidateRoutingResponsePackage,
     verifyFirstSecondLayerPackageBase:verifyFirstSecondLayerPackageBase,
     isValidateRoutingRequestOrResponsePackage:isValidateRoutingRequestOrResponsePackage
 }
