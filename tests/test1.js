@@ -10,11 +10,24 @@ const crypto = require('crypto');
     const sodium = _sodium;
 
     init_crypto(() => {
-        var k = sodium.crypto_sign_seed_keypair(crypto.createHash('sha256').update('key1').digest());
-        var n = Node(sodium, k);
-        console.log(Buffer.from(k.publicKey).toString('hex'))
-        n.addPeerClientConnection('ws://127.0.0.1:8081')
-        n.addNewWSServer(8080);
+        // Der Testseed wird erzeugt
+        const plainSeed = crypto.createHash('sha256').update('key1').digest();
+
+        // Das Sodium Schlüsselpaar wird aus dem Seed erstellt
+        var k = sodium.crypto_sign_seed_keypair(plainSeed);
+
+        // Die Einstellungen werden erzeugt
+        const configs = { key_height:1 };
+
+        var k = sodium.crypto_sign_seed_keypair(plainSeed);
+
+        // Der Node wird erzeugt
+        Node(sodium, [], plainSeed, configs, (node) => {
+            console.log(Buffer.from(k.publicKey).toString('hex'))
+            node.addPeerClientConnection('ws://127.0.0.1:8081')
+            node.addPeerClientConnection('ws://127.0.0.1:8089')
+            node.addNewWSServer(8080);
+        });
     });
 })();
 

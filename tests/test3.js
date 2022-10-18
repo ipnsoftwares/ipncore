@@ -8,15 +8,25 @@ const crypto = require('crypto');
     await _sodium.ready;
     const sodium = _sodium;
     init_crypto(() => {
-        var k = sodium.crypto_sign_seed_keypair(crypto.createHash('sha256').update('key3').digest());
-        var n = Node(sodium, k);
-        n.addNewWSServer(8081);
+        // Der Testseed wird erzeugt
+        const plainSeed = crypto.createHash('sha256').update('key3').digest();
 
-        // Es wird ein Testsocket erstellt
-        const testSocket = n.createNewLocalSocket(crypto.createHash('sha256').update('d').digest('hex'), (error, sockObj) => {
-            sockObj.onRecived((data, source, sport) => {
-                sockObj.write("hallo welt zurück", source, sport, (r) => {
+        // Das Sodium Schlüsselpaar wird aus dem Seed erstellt
+        var k = sodium.crypto_sign_seed_keypair(plainSeed);
 
+        // Die Einstellungen werden erzeugt
+        const configs = { key_height:1 };
+
+        // Der Node wird gestartet
+        Node(sodium, [], plainSeed, configs, (node) => {
+            node.addNewWSServer(8081);
+
+            // Es wird ein Testsocket erstellt
+            const testSocket = node.createNewLocalSocket(crypto.createHash('sha256').update('d').digest('hex'), (error, sockObj) => {
+                sockObj.onRecived((data, source, sport) => {
+                    sockObj.write("hallo welt zurück", source, sport, (r) => {
+
+                    });
                 });
             });
         });

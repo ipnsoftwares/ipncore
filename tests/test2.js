@@ -1,5 +1,5 @@
+const { init_crypto, convert_addr_to_pkey } = require('../crypto');
 const _sodium = require('libsodium-wrappers');
-const { init_crypto } = require('../crypto');
 const { Node } = require('../node');
 const figlet = require('figlet');
 const crypto = require('crypto');
@@ -22,20 +22,18 @@ const crypto = require('crypto');
         const configs = { key_height:1 };
 
         // Das Nodeobjekt wird erzeugt
-        Node(sodium, k, [], plainSeed, configs, (noder) => {
+        Node(sodium, [], plainSeed, configs, (noder) => {
             // Die Primäre Node Adresse wird angezeigt
             console.log(Buffer.from(k.publicKey).toString('hex'))
 
             // Es wird versucht eine Verbindung mit dem Peer herzustellen
-            noder.addPeerClientConnection("ws://127.0.0.1:8089", [], () => {
-                
-            });
+            noder.addPeerClientConnection("ws://127.0.0.1:8089", [], () => {});
 
             // Es wird eine Verbindung zum 2ten Node aufgebaut
             noder.addPeerClientConnection("ws://127.0.0.1:8080", [], () => {
                 // Die Route wird im Netzwerk gesucht
                 setTimeout(() => {
-                    var destpubk = '4d1363e238850ff3802e6ade30cc91cf8053769536a6ace6b41f7c0143c2a5fc';
+                    var destpubk = convert_addr_to_pkey('ipn130gw2g2czyzgc8a2fs82g0kkkngw7u9ygc64ecnqtmengd87exps0w6p39').toString('hex');
                     noder.initAddressRoute(destpubk, (res) => {
                         if(!res) {
                             console.log('No route found');
@@ -43,15 +41,14 @@ const crypto = require('crypto');
                         }
 
                         const sock = crypto.createHash('sha256').update('d').digest('hex');
+                        console.log('SOCK_CREATION');
                         const testSocket = noder.createNewLocalSocket(sock, (error, sockObj) => {
-
                             sockObj.onRecived((data, source, sport) => {
                                 console.log(data, 'from:', source, sport);
                             });
 
-                            sockObj.write('hallo welt', "4d1363e238850ff3802e6ade30cc91cf8053769536a6ace6b41f7c0143c2a5fc", sock, (r) => {
-
-                            })
+                            sockObj.write('hallo welt', destpubk, sock, (r) => {
+                            });
                         });
                     }, 2);
                 }, 2000);
@@ -59,4 +56,3 @@ const crypto = require('crypto');
         });
     });
 })();
-

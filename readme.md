@@ -48,7 +48,7 @@ The Interplanetray Network is an open-source, decentralized P2P network that aim
 - [ ] DDoS Protection (INIP0013)
 - [ ] DNS Node seeding (INIP0003)
 - [ ] Uniform address format (INIP0010)
-- [x] [API / IPC Protocol / Support (IPN0016)
+- [x] API / IPC Protocol / Support (IPN0016)
 - [ ] Commandline Console for IPN-Core Service
 - [ ] Power Routing over Distributed hash table (DHT)
 - [ ] Optimization for mobile devices
