@@ -38,5 +38,5 @@ module.exports = {
     isNodeOnPCLaptopOrEmbeddedLinuxSystem:isNodeOnPCLaptopOrEmbeddedLinuxSystem,
     isAsyncFunction:isAsyncFunction,
     parsIpAddress:parsIpAddress,
-    getDataUnit:getDataUnit
+    getDataUnit:getDataUnit,
 }

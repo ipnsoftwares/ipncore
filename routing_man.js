@@ -1,9 +1,11 @@
 const { get_hash_from_dict, convert_pkey_to_addr, generate_ed25519_keypair, compute_shared_secret, create_deterministic_keypair, double_sha3_compute } = require('./crypto');
-const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
+const { sign_digest, encrypt_anonymous } = require('./crypto');
+const { dprintok, dprintinfo, colors } = require('./debug');
+const { ProcessRoutingMap } = require('./maps');
 const consensus = require('./consensus');
 const EventEmitter = require('events');
-const { SHA3 } = require('sha3');
 const crypto = require('crypto');
+const cbor = require('cbor');
 
 
 
@@ -51,8 +53,8 @@ const routingManager = () => {
     // Speichert ab wann das letzte Paket an die Adresse XYZ über die Sitzung XYZ gesendet wurde
     var lastPackageSendToAddress = new Map();
 
-    // Speichert alle Adressen und ihre Suchvorgänge ab und ordnet die SessionID zu
-    var searchingNetworkAddressesToSearchSessionId = new Map();
+    // Verwaltet offenen Routing Request Anfragen
+    var openRoutingRequestProcesses = new ProcessRoutingMap();
 
     // Wird verwendet um eine Route hinzuzufügen
     const _addRotute = async (sessionId, publicKey, routeInitTime, autoDeleteTime=null) => {
@@ -221,6 +223,9 @@ const routingManager = () => {
                 await _delRoute(pkey, sessionId); 
             }
         }
+
+        // Es werden alle Offennen Suchvorgänge gesucht
+        openRoutingRequestProcesses.removePeerSession(sessionId);
 
         // Alle Routen für diese Sitzungen wurden entfernt
         dprintok(10, ['Session'], [colors.FgMagenta, sessionId], ['was unregistered from the routing manager']);
@@ -609,6 +614,145 @@ const routingManager = () => {
         return true;
     };
 
+    // Wird verwendet um eine neue Adresse im Netzwerk zu suchen (Artemis Protokoll)
+    const _artemisProNetworkWideAddressSearch = async (searchedNetworkAddress, callback) => {
+        console.log('Search', searchedNetworkAddress, 'in global network');
+
+        // Es wird geprüft ob es sich um eine bekannte Route handelt
+        const localRouteDbQueryResult = await pkeyToSessionEP.get(searchedNetworkAddress);
+        if(localRouteDbQueryResult !== undefined) {
+            // Es handelt sich um eine bekannte Adresse
+            console.log('IS_KNOWN_ADDRESS');
+            return;
+        }
+
+        // Die Adresse wird eingelesen
+        const encodedAddress = Buffer.from(searchedNetworkAddress, 'hex');
+
+        // Es wird ein Reserverd Doppel Hash aus der gesuchten Adresse erzeugt
+        const reservedHash = double_sha3_compute(encodedAddress);
+
+        // Es wird geprüft ob es bereits einen Vorgang für diese Adresse gibt
+        const openProcResult = await openRoutingRequestProcesses.hasOpenProcessForAddress(reservedHash.toString('hex'));
+        if(openProcResult === true) {
+            console.log('ALWAYS_SEARCHING');
+            return;
+        }
+
+        // Es wird ein OneTime Searching Process Key erzeugt
+        const tempKPair = generate_ed25519_keypair();
+
+        // Der Vorgang wird registriert
+        const addNewProc = await openRoutingRequestProcesses.setUpProcess(Buffer.from(tempKPair.publicKey).toString('hex'), reservedHash.toString('hex'));
+        if(addNewProc !== true) {
+            // Es wird geprüft ob es bereits einen Vorgang für diese Adresse gibt
+            if(openRoutingRequestProcesses.hasOpenProcessForAddress(reservedHash.toString('hex')) !== true) {
+                console.log('SEARCHING_ABORTED_INTERNAL_ERROR');
+                return;
+            }
+            return;
+        }
+
+        // Aus der Empfänger Adresse und dem Privaten TempKey wird ein DH Schlüssel erzeugt
+        compute_shared_secret(tempKPair.privateKey, encodedAddress, (error, result) => {
+            // Aus dem DH Schlüssel wird ein neues Schlüsselpaar abgeleitet
+            const phantomKeyPair = create_deterministic_keypair(result, "0/0/0");
+
+            // Die 8 Nodes mit denen am längsten eine Verbindung besteht werden herausgesucht
+            _GET_BASE_X_CONNECTIONS().then(async (totalFoundPeers) => {
+                // Es wird geprüft ob eine Verbindung abgerufen werden konnte
+                if(totalFoundPeers.length === 0) { return; }
+
+                // Wird abgearbeitet bis keine Verbindung mehr verfügbar ist
+                let copyedPeerList = totalFoundPeers;
+
+                // Speichert ab, an wieivle Peers das Paket berits erfolgreich gesendet wurde
+                let firstPackageWasSendTime = null, startSendTime = Date.now(), packageTTL = 30000, startedTime = 30000, failedSend = 0;
+
+                // Diese Funktion wird verwendet um das eigentliche Paket zu bauen und abzusenden
+                const _transpckg = async () => {
+                    // Es wird geprüft ob die Verbindug vorhanden ist
+                    if(copyedPeerList.length === 0) return;
+
+                    // Die erste Verbindung wird aus der Liste abgerufen
+                    const firstUseableConnection = copyedPeerList.pop();
+
+                    // Die Optionen werden in Bytes umgewandelt
+                    const bytedOptions = cbor.encode({ wish_ep:"ws+tor", timeout:12000 });
+
+                    // Die Optionen werden verschlüsselt
+                    encrypt_anonymous(bytedOptions, encodedAddress, (error, encryptedOptions) => {
+                        // Das Paket wird gebaut
+                        const preRequestPackage = {
+                            type:'rreq',
+                            start_ttl:startedTime,
+                            saddr:Buffer.from(reservedHash),
+                            options:Buffer.from(encryptedOptions),
+                            proc_sid:Buffer.from(tempKPair.publicKey),
+                            phantom_key:Buffer.from(phantomKeyPair.publicKey)
+                        };
+
+                        // Es wird ein Hash aus dem Paket erzeugt
+                        const packageHash = get_hash_from_dict(preRequestPackage);
+
+                        // Der Pakethash wird mit dem Prozess Schlüssel sowie mit dem Phantom Schlüssel signiert
+                        const procKeySig = sign_digest(packageHash, tempKPair.privateKey);
+                        const phantomKeySig = sign_digest(packageHash, phantomKeyPair.privateKey);
+
+                        // Das Finale Paket wird gebaut
+                        const finalPackage = { ...preRequestPackage, rsigs:{ phantom:phantomKeySig, proc:procKeySig }, ttl:packageTTL - (Date.now() - startSendTime) };
+
+                        // Es wird geprüft ob eine Verbindung mit dem ausgewhälten Peer besteht
+                        if(firstUseableConnection.isConnected() !== true) {
+                            console.log('IGNORED_CONNECTION_IS_NOT_CONNECTE');
+                            return;
+                        }
+
+                        // Der Peer wird dem Prozess hinzugefügt
+                        if(openRoutingRequestProcesses.setRequestPeerToProcess(Buffer.from(tempKPair.publicKey).toString('hex'), firstUseableConnection.sessionId()) !== true) {
+                            console.log('ABORTED_PROCESS_CLOSED');
+                            return;
+                        }
+
+                        // Das Paket wird an die Gegenseite gesendet
+                        firstUseableConnection.sendRawPackage(finalPackage, (result) => {
+                            // Es wird geprüft ob das Paket erfolgreich versendet wurde
+                            if(result !== true) {
+                                // Der Peer wird entfernt
+                                openRoutingRequestProcesses.deleteRequestPeerToProcess(Buffer.from(tempKPair.publicKey).toString('hex'), firstUseableConnection.sessionId());
+
+                                // Es wird ein Fehler heraufgezählt
+                                failedSend += 1; 
+
+                                // Es wird geoprüft ob soviele Vorgänge fehlgeschlagen sind wie abgesendet werden sollten
+                                if(failedSend === totalFoundPeers.length) {
+                                    console.log('INV');
+                                }
+
+                                // Der Vorgang wird beendet
+                                return; 
+                            }
+
+                            // Es wird geprüft ob es sich um das erste Paket handelt welches abgesendet wurde
+                            if(firstPackageWasSendTime === null) firstPackageWasSendTime = Date.now();
+                        });
+                    });
+
+                    // Das nächste Paket wird versendet
+                    await _transpckg();
+                };
+
+                // Das Senden des Paketes wird gestartet
+                await _transpckg();
+            });
+        });
+    };
+
+    // Wird verwendet um eintreffende Routing Request Packages für den Lokalen Node entgegen zu nehemen
+    const _artemisLocalRoutingRequestRecived = async(sessionIdPubK, searchedAddressHash, localKeyPair, recvConnObj) => {
+
+    };
+
     // Gibt die Schnellste SessionID für diese Verbindung an, sollte keine Verbindung vorhanden sein wird eine leere liste zurück gegegeben
     const _hasRouteByHashAndGetSessions = (publicKeyHash) => {
         // Der Eitnrag wird abgerufen
@@ -785,77 +929,6 @@ const routingManager = () => {
         return finalList;
     };
 
-    // Wird verwendet um eine neue Adresse im Netzwerk zu suchen (Artemis Protokoll)
-    const _artemisProNetworkWideAddressSearch = async (searchedNetworkAddress, callback) => {
-        console.log('Search', searchedNetworkAddress, 'in global network');
-
-        // Es wird geprüft ob es sich um eine bekannte Route handelt
-        const localRouteDbQueryResult = await pkeyToSessionEP.get(searchedNetworkAddress);
-        if(localRouteDbQueryResult !== undefined) {
-            // Es handelt sich um eine bekannte Adresse
-            console.log('IS_KNOWN_ADDRESS');
-            return;
-        }
-
-        // Es wird geprüft ob es bereits einen Vorgang für diese Adresse gibt
-        const openAddressSearchProcess = await searchingNetworkAddressesToSearchSessionId.get(searchedNetworkAddress);
-        if(openAddressSearchProcess !== undefined) {
-            console.log('ALWAYS_SEARCHING');
-            return;
-        }
-
-        // Es wird ein OneTime Searching Process Key erzeugt
-        const tempKPair = generate_ed25519_keypair();
-
-        // Die Adresse wird eingelesen
-        const encodedAddress = Buffer.from(searchedNetworkAddress, 'hex');
-
-        // Aus der Empfänger Adresse und dem Privaten TempKey wird ein DH Schlüssel erzeugt
-        compute_shared_secret(tempKPair.privateKey, encodedAddress, (error, result) => {
-            // Aus dem DH Schlüssel wird ein neues Schlüsselpaar abgeleitet
-            const tempKeyPair = create_deterministic_keypair(result, "0/0/0");
-
-            // Es wird ein Reserverd Doppel Hash aus der gesuchten Adresse erzeugt
-            const reservedHash = double_sha3_compute(encodedAddress);
-
-            // Die 8 Nodes mit denen am längsten eine Verbindung besteht werden herausgesucht
-            _GET_BASE_X_CONNECTIONS().then(async (totalFoundPeers) => {
-                // Es wird geprüft ob eine Verbindung abgerufen werden konnte
-                if(totalFoundPeers.length === 0) {
-                    console.log('NO_ANOTHER_NODES');
-                    return;
-                }
-
-                // Wird ausgeführt um das Routing Request Paket an die Gegenseite zu übermitteln
-                const _TRANSMIT_REQUEST = async () => {
-                    // Speichert ab, an wieivle Peers das Paket berits erfolgreich gesendet wurde
-                    let totalSendPackages = 0;
-
-                    // Diese Funktion wird verwendet um das eigentliche Paket zu bauen und abzusenden
-                    const _transpckg = async () => {
-                        // Das Paket wird gebaut
-                        const preRequestPackage = {
-                            saddr:Buffer.from(reservedHash),
-                            proc_sid:Buffer.from(tempKPair.publicKey),
-                            options:{ wish_prot:"ws+tor", timeout:1200 },
-                            phantom_key:Buffer.from(tempKeyPair.publicKey)
-                        };
-
-
-                        
-                        console.log(preRequestPackage);
-                    };
-
-                    // Das Senden des Paketes wird gestartet
-                    await _transpckg();
-                };
-
-                // Der Sende Vorgang wird gestartet
-                await _TRANSMIT_REQUEST();
-            });
-        });
-    };
-
     // Der Routing Timer wird gestartet
     setTimeout(_ROUTING_MAN_THR_TIMER, 10);
 
@@ -869,11 +942,12 @@ const routingManager = () => {
         listRoutes:_listRoutes,
         getAddressRouteEP:_getRoutingEndPoint,
         hasGetRouteForPkeyHash:_hasRouteByHashAndGetSessions,
+        searchAddressRoute:_artemisProNetworkWideAddressSearch,
         signalPackageReciveFromPKey:_signalPackageReciveFromPKey,
         enterOutgoingLayer2Packages:_enterOutgoingLayer2Packages,
         enterIncommingLayer2Packages:_enterIncommingLayer2Packages,
         signalPackageTransferedToPKey:_signalPackageTransferedToPKey,
-        searchAddressRoute:_artemisProNetworkWideAddressSearch
+        enterIncommingAddressSearchProcessDataLocal:_artemisLocalRoutingRequestRecived
     };
 };
 

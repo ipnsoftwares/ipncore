@@ -471,6 +471,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         decrypt_package_symmetric(_sessionSharedSecret, plainMessage, async (error, jsonEncodedPackage) => {
             // Es wird geprüft ob ein Fehler aufgetreten ist
             if(error !== null) {
+                console.log('C')
                 dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
                 _ADD_PACKAGE_RECIVED_INVALID(jsonEncodedPackage);
                 wsConnObject.close();
@@ -479,6 +480,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
 
             // Es wird geprüft ob es sich um ein gültiges Layer 1 Paket handelt
             if(validateLayerOneBasePackage(jsonEncodedPackage) !== true) {
+                console.log('D')
                 dprinterror(10, ['An invalid packet was received via the websocket connection'], [colors.FgMagenta, _currentSessionId, colors.Reset, ','], ['the connection is closed for security reasons.']);
                 _ADD_PACKAGE_RECIVED_INVALID(jsonEncodedPackage);
                 wsConnObject.close();
@@ -493,7 +495,7 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
                 wsConnObject.close();
                 return;
             }
-
+            
             // Der Pakettyp wird ermittelt
             switch (jsonEncodedPackage.type) {
                 case "pstr":

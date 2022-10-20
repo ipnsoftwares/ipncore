@@ -21,11 +21,11 @@ function double_sha3_compute(baseValue) {
     const comparedData = Buffer.from([...baseValue, ...reversedData]);
 
     // Der erste Hash wird erzeut
-    const reservedDoubbleHash = new SHA3(384);
+    const reservedDoubbleHash = new SHA3(512);
     reservedDoubbleHash.update(comparedData);
 
     // Der Finale Hash wird erzeugt
-    const finalHash = new SHA3(256);
+    const finalHash = new SHA3(384);
     finalHash.update(reservedDoubbleHash.digest());
 
     // Der Hash wird zurückgegeben

@@ -34,9 +34,6 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     // Speichert die Öffentlichen Schlüssel aller Verbundenen Nodes ab
     let _peerPubKeys = [];
 
-    // Speichert alle Offnenen Routing Request vorgänge ab
-    let _openAddressRouteRequestsPack = new Map();
-
     // Speichert das Primäre Schlüsselpaar ab
     let _localPrimaryKeyPair = null; 
 
@@ -204,7 +201,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     };
 
     // Gibt ein Schlüsselpaar zurück, sofern es sich um einen Lokalen Schlüssel handelt
-    const _GET_KEYPAIR_THEN_PUBKEYH_KNWON = (pubKeyHash) => {
+    const _GET_KEYPAIR_THEN_PUBKEYH_KNWON = async (pubKeyHash) => {
         // Es wird geprüft ob es sich um den Primären Schlüssel handelt
         if(_localPrimaryKeyPair !== null) {
             if(Buffer.from(_localPrimaryKeyPair.dpkhash).toString('hex') === pubKeyHash) return _localPrimaryKeyPair;
@@ -616,496 +613,38 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         }
     };
 
-    /**
-     * @deprecated Replaced by Artemis Protocol
-    */
-    // Sendet ein Routing Response an einen Peer
-    const _SEND_ROUTING_RESPONSE = async (oneTimeAddressRequest, timeout, connObj, procId, retrLocalKeyPair, callback) => {
-        // Es wird ein OpenRouteResponseSessionPackage gebaut
-        const openRouteSessionPackage = {
-            type:'rrr',                                         // Gibt an dass es sich um ein Routing Request Package handelt
-            version:consensus.version,                          // Gibt die Aktuelle Versions des Nodes an
-            orn:oneTimeAddressRequest,                          // Gibt den OneTimeRequest wert an
-            addr:Buffer.from(retrLocalKeyPair.publicKey),       // Gibt die Gefundende Adresse an
-            timeout:timeout                                     // Gibt an, wann das Paket abläuft
-        };
-
-        // Aus dem OneTime Value und der Adresse wird ein Hash erstellt
-        const decodedProcId = Buffer.from(procId, 'hex');
-        const addrSig = sign_digest(decodedProcId, retrLocalKeyPair.privateKey);
-
-        // Das Finale Paket wird gebaut
-        const finalPackage = Object.assign(openRouteSessionPackage, { addrsig:Buffer.from(addrSig).toString('hex') });
-
-        // Das Paket wird an die gegenseite gesendet
-        connObj.sendUnsigRawPackage(finalPackage, () => {
-            callback(true); 
-        });
-    };
-
     // Nimmt eintreffende Routing Request Pakete entgegen
     const _ENTER_ROUTING_REG_RESP_PACKAGE = async (package, connObj) => {
         // Es wird geprüft ob es sich um korrektes Routing Request oder Routing Response Package handelt
         if(isValidateRoutingRequestOrResponsePackage(package) !== true) {
-            console.log('INVALID_PACKAGE');
+            console.log('INVALID_PACKAGE', package);
             return;
         }
 
-        // Es wird geprüft ob die Timeout grenze erreicht wurde
-        const toutTime = package.timeout - connObj.getPingTime();
-        if(toutTime <= 0) {
-            console.log('PACKAGE_DROPED_TIMEOUT');
-            return; 
-        }
-
-        // Speichert die Aktuelle Startzeit des Prozzeses ab
-        const processStartingTime = Date.now();
-
-        // Gibt an, wieviele Antworten Maximal erlaubt sind
-        const maxRequestesForCurrentPorcessAllowed = 3;
-
-        // Es wird geprüft ob es sich um eine Anfrage oder eine Antwort handelt
+        // Es wird geprüft ob es sich um ein Request oder ein Response Paket handelt
         if(package.type === 'rreq') {
-            // Es wird geprüft ob es sich um ein Routing Request Package handelt
+            // Es wird geprüft ob es sich um ein gültiges Routing Request Package handelt
             if(isValidateRoutingRequestPackage(package) !== true) {
-                console.log('PACKAGE_DROPED_INVALID_PACKAGE');
-                return; 
-            }
-
-            // Es wird geprüft ob der Vorgang bereits bekannt ist
-            const reqProcId = crypto.createHash('sha256').update(package.orn).update(package.addrh).digest('hex');
-            const basedReqProcId = Buffer.from(reqProcId, 'hex').toString('base64');
-            const resolvedOpenProcs = _openAddressRouteRequestsPack.get(reqProcId);
-            if(resolvedOpenProcs !== undefined) {
-                // Es wird geprüft ob der Prozess beretis abgeschlossen wurde
-                if(resolvedOpenProcs.operationIsOpen !== true) {
-                    console.log('PACKAGE_DROPED_PROCESS_ALWAYS_CLOSED', finalProcId);
-                    return;
-                }
-
-                // Dem Vorgang wird signalisiert dass eine Antwort eingetroffen ist
-                await resolvedOpenProcs.retrvPackage(package, connObj)
+                // Es handelt sich um ein ungültiges Paket
+                console.log('INVALID_PACKAGE', package);
                 return;
             }
 
-            // Es wird geprüft ob es sich bei der gesuchten Adresse um die Adresse des Aktuellen Nodes handelt, wenn nicht wird eine Anfrage an das Netzwerk gestellt sofern Peers vorhanden sind
-            const retivedKeyPair = _GET_KEYPAIR_THEN_PUBKEYH_KNWON(package.addrh);
-            if(retivedKeyPair !== null) {
-                // Debug Print
-                dprintok(10, ['A routing request was received through session'], [colors.FgMagenta, connObj.sessionId()], ['with process id'], [colors.FgCyan, basedReqProcId]);
-
-                // Wird ausgeführt sollte eine Antwort eingetroffen sein, in dem fall wird das Paket verworfen, da die Anfrage bereits beantwortet wurde
-                const _AFTER_RECIVCE_RESPONSE = async (newTime, nconnobj, orpackage) => {
-                    // Der Aktuelle Vorgang wird abgerufen
-                    const tempResolvObj = _openAddressRouteRequestsPack.get(reqProcId);
-                    if(tempResolvObj === undefined) { console.log('PACKAGE_FOR_UNKOWN_PROCESS_DROPED'); return; }
-
-                    // Es wird geprüft ob dieses Paket bereits empfangen wurde
-                    if(tempResolvObj.recivedPackageHashes.includes(get_hash_from_dict(orpackage)) === true) {
-                        console.log('PACKAGE_DROPED_ALWAYS_RECIVED_THIS_PACKAGE');
-                        return;
-                    }
-
-                    // Der Pakethash wird dem Vorgang hinzugefügt
-                    tempResolvObj.recivedPackageHashes.push(get_hash_from_dict(orpackage));
-
-                    // Es wird geprüft ob von diesem Peer bereits ein Paket Empfangen wurde
-                    let totalPeersRecived = 0;
-                    for(const otem of tempResolvObj.peers) {
-                        totalPeersRecived += 1;
-                        if(otem.ep.sessionId() === nconnobj.sessionId() && otem.ep.send !== false) {
-                            console.log('PACKAGE_DROPED_FOR_CONNECTION');
-                            return;
-                        }
-                        if(totalPeersRecived > 3) break;
-                    }
-
-                    // Es wird geprüft ob bereits 1 Pakete beantwortet wurden, wenn ja wird der Vorgang abgebrochen
-                    if(totalPeersRecived >= maxRequestesForCurrentPorcessAllowed) {
-                        dprinterror(10, ['Routing request process packet'], [colors.FgMagenta, basedReqProcId], ['was discarded, the process has already been answered.']);
-                        return;
-                    }
-
-                    // Es wird Signalisiert das ein Paket von der Aktuellen Verbindung empfangen wurde
-                    tempResolvObj.peers.push({ send:false, recive:true, ep:nconnobj });
-                    _openAddressRouteRequestsPack.set(reqProcId, tempResolvObj);
-
-                    // Die Aktuelle TTL wird neu berechnet
-                    var preTTL = Date.now() - processStartingTime;
-                    if(preTTL < 0) preTTL = 0;
-                    var newTTL = newTime - preTTL;
-
-                    // Das Antwortpaket wird an den Aktuellen Peer zurückgesendet
-                    await _SEND_ROUTING_RESPONSE(package.orn, newTTL, nconnobj, reqProcId, retivedKeyPair, (r) => {
-                        // Es wird Signalisiert dass das Paket an den Peer gesendet wurde
-                        const tempRObj = _openAddressRouteRequestsPack.get(reqProcId);
-                        if(tempRObj !== undefined) {
-                            let foundElement = false;
-                            for(const otem of tempRObj.peers) {
-                                if(otem.ep.sessionId() === nconnobj.sessionId()) {
-                                    otem.send = { tstamp:Date.now() };
-                                    foundElement == true;
-                                }
-                            }
-                        }
-
-                        // Der Eintrag wird geupdated
-                        if(_openAddressRouteRequestsPack.get(reqProcId) !== undefined) _openAddressRouteRequestsPack.set(reqProcId, tempRObj);
-
-                        // Debug Log
-                        dprintok(10, ['The routing response packet for event'], [colors.FgCyan, basedReqProcId], ['was transferred to session'], [colors.FgMagenta, nconnobj.sessionId(),]);
-                    });
-                };
-
-                // Wird als Timer ausgeführt wenn die Wartezeit abgelaufen ist, wenn ja wird der Vorgang aus dem Cache entfernt und in die LongDB geschrieben
-                const _TIMER_LOCAL_ADDRESS_RESP = () => {
-                    dprintinfo(10, ['The routing request process'], [colors.FgCyan, basedReqProcId], ['has ended.'])
-                    _openAddressRouteRequestsPack.delete(reqProcId);
-                };
-
-                // Der Vorgang wird zwischengespeichert
-                _openAddressRouteRequestsPack.set(reqProcId, {
-                    procOpened:Date.now(),
-                    procClosed:null,
-                    operationIsOpen:true,
-                    aborted:false,
-                    retrvPackage:_AFTER_RECIVCE_RESPONSE,
-                    peers:[ { send:false, recive:true, ep:connObj } ],
-                    recivedPackageHashes:[get_hash_from_dict(package)]
-                });
-
-                // Der Time wird gestartet
-                setTimeout(_TIMER_LOCAL_ADDRESS_RESP, 120000);
-
-                // Die Aktuelle TTL wird neu berechnet
-                var preTTL = Date.now() - processStartingTime;
-                if(preTTL < 0) preTTL = 0;
-                var newTTL = toutTime - preTTL;
-
-                // Das Antwortpaket wird an den Aktuellen Peer zurückgesendet
-                await _SEND_ROUTING_RESPONSE(package.orn, newTTL, connObj, reqProcId, retivedKeyPair, (r) => {
-                    // Es wird Signalisiert dass das Paket an den Peer gesendet wurde
-                    const tempRObj = _openAddressRouteRequestsPack.get(reqProcId);
-                    if(tempRObj !== undefined) {
-                        let foundElement = false;
-                        for(const otem of tempRObj.peers) {
-                            if(otem.ep.sessionId() === connObj.sessionId()) {
-                                otem.send = { tstamp:Date.now() };
-                                foundElement == true;
-                            }
-                        }
-                    }
-
-                    // Der Eintrag wird geupdated
-                    if(_openAddressRouteRequestsPack.get(reqProcId) !== undefined) _openAddressRouteRequestsPack.set(reqProcId, tempRObj);
-
-                    // Debug Log
-                    dprintok(10, ['The routing response packet for event'], [colors.FgCyan, basedReqProcId], ['was transferred to session'], [colors.FgMagenta, connObj.sessionId(),]);
-                });
-            }
+            // Es wird geprüft ob es sich um eine Lokale Adresse handelt, wenn ja wird das Paket beantwortet
+            const retrivedKeyPair = await _GET_KEYPAIR_THEN_PUBKEYH_KNWON(package.saddr);
+            if(retrivedKeyPair !== null) await _rManager.enterIncommingAddressSearchProcessDataLocal(package.proc_sid, package.saddr, retrivedKeyPair, connObj);
             else {
-                // Wird ausgeführt sollte eine Antwort eingetroffen sein
-                const _AFTER_RECIVCE_RESPONSE = async (rpackage, connObjX) => {
-                    // Es wird geprüft ob der Vorgang noch geöffnet ist
-                    let totalEndPoints = _openAddressRouteRequestsPack.get(reqProcId);
-                    if(totalEndPoints === undefined) {
-                        console.log('SENDING_RESPONSE_ABORTED_NO_AVAIL_PROCESS');
-                        return;
-                    }
 
-                    // Es wird geprüft ob das Antwortpaket von dieser Verbindung angefordert wurde, wenn ja wird Signalisiert dass ein Paket empfangen wurde
-                    let hasFoundPeerFromRecive = false;
-                    for(let otem of totalEndPoints.peers) {
-                        if(otem.ep.sessionId() === connObjX.sessionId()) {
-                            // Es wird geprüft ob ein Requestpaket an diese Verbindung gesendet wurde
-                            if(otem.sendRequest === true) {
-                                // Es wurd geprüft ob bereits ein Responsepaket von dieser Verindung empfangen wurde
-                                if(otem.reciveResponse === false) {
-                                    // Das Update des Eintrages wird vorbereitet
-                                    otem.reciveResponse = true;
-                                    otem.recive = true;
-                                    let updatedPeersList = [];
-                                    for(let notem of totalEndPoints.peers) {
-                                        if(notem.ep.sessionId() == connObjX.sessionId()) updatedPeersList.push(otem);
-                                        else updatedPeersList.push(notem);
-                                    }
-
-                                    // Die Daten werdne geupdatet
-                                    dprintok(10, ['The routing request process'], [colors.FgCyan, basedReqProcId], ['was terminated with a response after'], [colors.FgMagenta, Date.now()-processStartingTime], ['ms.']);
-                                    const updatedProcValue = Object.assign(totalEndPoints, { peers:updatedPeersList, operationIsOpen:false, procClosed:Date.now() });
-                                    _openAddressRouteRequestsPack.set(reqProcId, updatedProcValue);
-                                    hasFoundPeerFromRecive = true;
-                                }
-                                else {
-                                    console.log('DROP_PACKAGE_HAS_ALWAYS_A_RESPONSE_RECIVED', connObjX.sessionId());
-                                    return;
-                                }
-                            }
-                            else {
-                                console.log('DROP_PACKAGE_HAS_NOT_SEND_REQUEST_TO_CONNECTION', connObj.sessionId());
-                                return;
-                            }
-                        }
-                    }
-
-                    // Es wird geprüft ob Mindestens ein Peer gefunden wurde
-                    if(hasFoundPeerFromRecive !== true) {
-                        console.log('PACKAGE_DROPED_THIS_NODE_HAS_NOT_REQUESTED', reqProcId);
-                        return;
-                    }
-
-                    // Es werden alle Peers abgerufen welche noch keine Antwort erhalten haben
-                    var extractedPeersTs = [];
-                    if(totalEndPoints !== undefined) {
-                        for(let otem of totalEndPoints.peers) {
-                            if(otem.reciveRequest === true) {
-                                if(otem.sendResponse === false) { extractedPeersTs.push(otem); }
-                            }
-                        }
-                    }
-
-                    // Wird verwendet um das Response Paket weiterzuleiten
-                    const _FORWARD_RESPONSE_PACKAGE = (rpackage, connObjX) => {
-                        console.log('FORWARD', rpackage)
-
-                        // Es wird geprüft ob weitere Peers verfügbar sind
-                        if(extractedPeersTs.length === 0) {
-                            console.log('FINAL');
-                            return;
-                        }
-
-                        // Die Aktuell Verfügbaren Verbindungen werden nach geschwindigkeit Sortiert
-                        extractedPeersTs = extractedPeersTs.sort((a, b) => a.getPingTime() - b.getPingTime());
-
-                        // Der Erste Peer wird aus der Liste extrahiert
-                        const firstExtractedPeer = extractedPeersTs.pop();
-
-                        // Es wird ermittelt wielange es gedauert hat
-                        const procTTL = Date.now() - processStartingTime;
-                        const newPackageTTL = rpackage.timeout - connObjX.getPingTime() - procTTL;
-
-                        // Es wird ein OpenRouteSessionPackage gebaut
-                        const openRouteSessionPackage = { type:'rrr', version:consensus.version, orn:rpackage.orn, addr:rpackage.addr, addrsig:rpackage.addrsig, timeout:newPackageTTL };
-
-                        // Das Paket wird abgesendet
-                        firstExtractedPeer.ep.sendUnsigRawPackage(openRouteSessionPackage, (r) => {
-                            dprintok(10, ['The routing response packet for event'], [colors.FgCyan, basedReqProcId], ['was sent to session'], [colors.FgMagenta, connObj.sessionId(), colors.Reset, '.']);
-                        });
-                    };
-
-                    // Das Paket wird an die Peers weitergeleitet
-                    _FORWARD_RESPONSE_PACKAGE(rpackage, connObjX);
-                };
-
-                // Der Vorgang wird registriert
-                _openAddressRouteRequestsPack.set(reqProcId, {
-                    procOpened:processStartingTime, procClosed:null, operationIsOpen:true, aborted:false, retrvPackage:_AFTER_RECIVCE_RESPONSE, peers:[
-                        { send:false, recive:true, sendResponse:false, sendRequest:false, reciveRequest:true, reciveResponse:false, first:true, ep:connObj, entryAddTimestamp:Date.now() }
-                    ]
-                });
-
-                // Wird als Timer ausgeführt
-                const _TIMER_FUNCTION = () => {
-                    // Es wird geprüft ob der Vorgang noch Vorhanden ist
-                    const retrProc = _openAddressRouteRequestsPack.get(reqProcId);
-                    if(retrProc === undefined) { console.log('UNKOWN_TIMER_PROCESS_CALL_ABORTED'); return; }
-
-                    // Es wird geprüft ob es eine Antwort auf dieses Paket gab
-                    if(retrProc.operationIsOpen === true) { dprintok(10, ['The routing request process'], [colors.FgCyan, basedReqProcId], ['was terminated without a response.']); }
-                    else { dprintinfo(10, ['Routing request process'], [colors.FgCyan, basedReqProcId], ['was closed successfully.']); }
-
-                    // Der Vorgang wird entfernt
-                    _openAddressRouteRequestsPack.delete(reqProcId);
-                };
-
-                // Wird aufgerufen nachdem ein Paket an eine Sitzung übergeben wurde
-                const _ENTER_SEND_PACKAGE_SESSION_ID = (ep) => {
-                    // Der Aktuelle Prozess wird abgerufen
-                    let tempObj = _openAddressRouteRequestsPack.get(reqProcId);
-                    if(tempObj !== undefined) {
-                        for(const otem of tempObj.peers) {
-                            if(otem.ep.sessionId() === ep.sessionId()) {
-                                console.log('UPDATE', otem);
-                                return;
-                            }
-                        }
-
-                        // Wenn kein Passender Eintrag gefunden wurde, wird ein neuer Hinzugefügt
-                        dprintok(10, ['The routing request packet for operation'], [colors.FgCyan, Buffer.from(reqProcId, 'hex').toString('base64')], ['was forwarded to session'], [colors.FgMagenta, connObj.sessionId()]);
-                        tempObj.peers.push({ send:true, recive:false, sendResponse:false, sendRequest:true, reciveRequest:false, reciveResponse:false, first:false, ep:ep, entryAddTimestamp:Date.now() });
-                        _openAddressRouteRequestsPack.set(reqProcId, tempObj);
-                    }
-                };
-
-                // Gibt an ob die ID korrekt ist
-                const _IS_KNOWN_SESSION = (sessionId) => {
-                    // Der Aktuelle Request vorgang wird abgerufen
-                    const tobj = _openAddressRouteRequestsPack.get(reqProcId);
-                    if(tobj === undefined) return null;
-
-                    // Es wird geprüft ob an die Session bereits ein Paket gesendet wurde oder eine Request Anfrage von diesem Node entfangen wurde
-                    for(const otem of tobj.peers) {
-                        if(otem.ep.sessionId() === sessionId) {
-                            if(otem.sendRequest === true || otem.reciveRequest === true || otem.reciveResponse === true || otem.sendResponse === true) return true;
-                        }
-                    }
-
-                    // An diese Session wurde dieser Vorgang noch nicht weitergeleitet
-                    return false;
-                };
-
-                // Wird ausgeführt wenn das erste Paket versendet wurde
-                const _FIRST_PACKAGE_WAS_SEND = (state, ep) => {
-                    if(state === true) { _ENTER_SEND_PACKAGE_SESSION_ID(ep); setTimeout(_TIMER_FUNCTION, toutTime); }
-                    else { console.log('ABORTED_NO_PEERS_AVAIL_TO_FORWARD_ADDRESS_ROUTE_REQUEST'); }
-                };
-
-                // Es wird geprüft ob es Peers gibt welche die gesuchte Adresse bereits kennen
-                let retrivedOnlyPeersList = [];
-                const retrivedOnlyPeers = _rManager.hasGetRouteForPkeyHash(package.addrh);
-                if(retrivedOnlyPeers !== false) {
-                    const retrivedConnection = _openConnectionPeers.get(retrivedOnlyPeers);
-                    if(retrivedConnection !== undefined) { retrivedOnlyPeersList.push(retrivedOnlyPeers); }
-                }
-
-                // Das Paket wird im Netzwerk gebrodcastet
-                _BRODCAST_ADDRESS_ROUTE_REQUEST_PACKAGE(package.addrh, toutTime, connObj, processStartingTime, package.orn, _IS_KNOWN_SESSION, _ENTER_SEND_PACKAGE_SESSION_ID, _FIRST_PACKAGE_WAS_SEND, retrivedOnlyPeersList)
-                .catch((E) => {});
             }
         }
         else if(package.type === 'rrr') {
-            // Es wird geprüft ob es sich um ein Routing Response Paket handelt
-            if(isValidateRoutingResponsePackage(package) !== true) {
-                console.log('PACKAGE_DROPED_INVALID_PACKAGE');
-                return; 
-            }
 
-            // Es wird ein Doppelter Hash aus der Adresse wird erzeugt
-            const firstHash = crypto.createHash('sha256').update(package.addr).digest();
-            const doubleHash = crypto.createHash('sha256').update(firstHash).digest('hex');
-
-            // Aus der VorgangsID sowie dem Double Hash der Adressen werden mittels Hash zusammengeführt
-            const finalProcId = crypto.createHash('sha256').update(package.orn).update(doubleHash).digest('hex');
-
-            // Es wird geprüft ob die Signatur korrekt ist
-            if(verify_digest_sig(Buffer.from(finalProcId, 'hex'), Buffer.from(package.addrsig, 'hex'), Buffer.from(package.addr, 'hex')) === false) {
-                console.log('INVALID_ADDRESS_SIGNATURE_PACKAGE_DROPED', package);
-                return;
-            }
-
-            // Es wird geprüft ob der Vorang geöffnet ist
-            let openProcess = _openAddressRouteRequestsPack.get(finalProcId);
-            if(openProcess === undefined) { console.log('ROUTING_RESPONSE_PACKAGE_DROPED'); return; }
-
-            // Es wird geprüft ob es bereits ein Antwortpaket für diesen Vorgang gab
-            if(openProcess.operationIsOpen !== true) {
-                console.log('DROP_PACKAGE_REQUEST_ALWASY_RETRIVED', connObj.sessionId());
-                return;
-            }
-
-            // Dem Vorgang wird signalisiert dass eine Antwort eingetroffen ist
-            await openProcess.retrvPackage(package, connObj)
         }
         else {
-            connObj.close();
-            console.log('UNKOWN_ERROR');
-            return; 
-        }
-    };
-
-    /**
-     * @deprecated Replaced by Artemis Protocol
-    */
-    // Sendet ein AddressRouteRequestPackage an alle Netzwerkteilnehmer
-    const _BRODCAST_ADDRESS_ROUTE_REQUEST_PACKAGE = async (addressHash, timeout, sourceConnection, processStartingTime, randSessionId, isKnownSession, enterSendPackageSessionId, firstPackageSendCallback, onlyPeers=[], callback=null) => {
-        // Es werden alle Verfügabren Peers abgerufen
-        var retrivedPeers = [];
-        if(onlyPeers.length > 0) {
-            // Es werden alle Peers an welche das Paket gesendet werden soll, extrahiert
-            for(const otem of onlyPeers) {
-                const obj = _openConnectionPeers.get(otem);
-                if(obj === undefined) continue;
-                if(sourceConnection !== undefined && sourceConnection !== null) {
-                    if(obj.sessionId() !== sourceConnection.sessionId()) { retrivedPeers.push(obj); }
-                }
-                else {
-                    retrivedPeers.push(obj); 
-                }
-            }
-        }
-        else {
-            // Es werden alle Peers verarbeitet, alle Peers außer der Aktuelle Peer über welchen die Anfrage Empfangen wurde, erhalten ein Request Routing Paket
-            for(const otem of _openConnectionPeers.keys()) {
-                const obj = _openConnectionPeers.get(otem);
-                if(obj === undefined) continue;
-                if(sourceConnection !== undefined && sourceConnection !== null) {
-                    if(obj.sessionId() !== sourceConnection.sessionId()) { retrivedPeers.push(obj); }
-                }
-                else {
-                    retrivedPeers.push(obj);
-                }
-            }
-        }
-
-        // Es wird geprüft ob eien Verfüugbare Verbindung gefunden wurde
-        if(retrivedPeers.length === 0) {
-            console.log('ROUTING_REQUEST_PACKAGE_DROPTED_NO_AVAILABLE_PEERS');
+            // Es handelt sich um ein Unbeaknntes Paket, es ist ein Unbekannter Fehler aufgetreten
+            console.log('INTERNAL_ERROR');
             return;
         }
-
-        // Es wird geprüft ob mehr als 8 Mögliche peers Verfügar sind, wenn ja werden die 8 Schenellsten und Zufärlässigsten Peers ausgewählt
-        if(retrivedPeers.length > 8) { retrivedPeers = retrivedPeers.sort((a, b) => a.getPingTime() - b.getPingTime()).slice(0, 8); }
-
-        // Wird hintereinander ausgeführt bis alle Pakete versendet wurden
-        var istFirstPackageWasSend = true;
-        const _PACKAGE_SEND_LOOP_FUNCTION = async () => {
-            // Es wird geprüft ob weitere Peers verfügbar sind
-            if(retrivedPeers.length === 0) {
-                if(callback !== null) callback();
-                return;
-            }
-
-            // Die Aktuell Verfügbaren Verbindungen werden nach geschwindigkeit Sortiert
-            retrivedPeers = retrivedPeers.sort((a, b) => a.getPingTime() - b.getPingTime());
-
-            // Der Erste Peer wird aus der Liste extrahiert
-            const firstExtractedPeer = retrivedPeers.pop();
-
-            // Es wird geprüft ob an diese Sitzung bereits etwas gesendet wurde
-            if(isKnownSession !== undefined && isKnownSession !== null) {
-                if(isKnownSession(firstExtractedPeer.sessionId()) === true) { await _PACKAGE_SEND_LOOP_FUNCTION(); return; }
-            }
-
-            // Es wird ermittelt wielange es gedauert hat
-            const procTTL = Date.now() - processStartingTime;
-            const newPackageTTL = timeout - procTTL;
-
-            // Es wird ein OpenRouteSessionPackage gebaut, Consensus(ARTEMIS, INIP001, CLEAR-REQUEST)
-            const openRouteSessionPackage = {
-                type:'rreq',
-                version:consensus.version,
-                orn:randSessionId, 
-                addrh:addressHash,
-                timeout:newPackageTTL
-            };
-
-            // Das Paket wird an diesen Peer gesendet
-            firstExtractedPeer.sendUnsigRawPackage(openRouteSessionPackage, () => {
-                if(istFirstPackageWasSend === true) {
-                    firstPackageSendCallback(true, firstExtractedPeer);
-                    istFirstPackageWasSend = false;
-                }
-                else {
-                    enterSendPackageSessionId(firstExtractedPeer);
-                }
-
-                // Das Paket wird an den nächsten Peer gesendet
-                _PACKAGE_SEND_LOOP_FUNCTION().catch((E) => {});
-            });
-        };
-
-        // Das versenden der Daten wird gestartet
-        await _PACKAGE_SEND_LOOP_FUNCTION();
     };
 
     // Gibt Lokal Verfügbare Server Ports aus
@@ -1254,7 +793,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             }
             else {
                 // Es wird über den Routing Manager eine Anfrage an das Netzwerk gestellt um die Route zu ermitteln
-                await _rManager.searchAddressRoute(publicKey, async (state, rtime) => {
+                await _rManager.searchAddressRoute(publicKey, null, async (state, rtime) => {
 
                 });
             }

@@ -36,19 +36,11 @@ function isValidateRoutingRequestOrResponsePackage(packageObject) {
     // Es wird geprüft ob es sich um ein Objekt handelt
     if(typeof packageObject !== 'object') return false;
 
-    // Es wird geprüft ob die benötigten Datenfelder vorhanden sind
-    if(packageObject.timeout === undefined) return false;
-    if(packageObject.orn === undefined) return false;
-    if(packageObject.type === undefined) return false;
+    // Speichert alle gültigen Felder ab
+    const neededFields = ['version', 'type', 'start_ttl', 'saddr', 'options', 'proc_sid', 'phantom_key', 'rsigs', 'ttl', 'sig'];
 
-    // Es wird geprüft ob es sich um gültige Datentypen handelt
-    if(packageObject.type !== 'rreq' && packageObject.type !== 'rrr') return false;
-    if(typeof packageObject.timeout !== 'number') return false;
-    if(typeof packageObject.type !== 'string') return false;
-
-    // Es wird geprüft ob die Ablaufzeit korrekt ist
-    if(packageObject.timeout <= 0) return false;
-    if(packageObject.timeout > 120000) return false;
+    // Es wird geprüft ob die Datenfelder korrekt sind
+    for(const otem of neededFields) { if(Object.keys(packageObject).includes(otem) === false) { return false; } }
 
     // Es handelt sich um ein gültiges Paket
     return true;
@@ -63,15 +55,19 @@ function isValidateRoutingRequestPackage(packageObj) {
     if(packageObj.type !== 'rreq') return false;
 
     // Speichert alle gültigen Felder ab
-    const allowedFields = ['version', 'type', 'orn', 'addrh', 'timeout', 'sig'];
+    const allowedFields = ['version', 'type', 'start_ttl', 'saddr', 'options', 'proc_sid', 'phantom_key', 'rsigs', 'ttl', 'sig'];
+    const allowedRSigFields = ['phantom', 'proc'];
 
     // Es wird geprüft ob alle gültigen Feder vorhanden sind
     for(const otem of Object.keys(packageObj)) { if(allowedFields.includes(otem) === false) { console.log(otem); return false; } }
     for(const otem of allowedFields) { if(Object.keys(packageObj).includes(otem) === false) { return false; } }
 
-    // Es wird geprüft ob die Länge des Addresses Hashes sowie des Einaml Schlüssels korrekt sind
-    if(packageObj.addrh.length !== 64) return false;
-    if(packageObj.orn.length !== 64) return false;
+    // Es wird geprüft ob die Signaturen korrekt sind
+    if(typeof packageObj.rsigs !== 'object') return false;
+
+    // Es wird geprüft ob die Signatur Fehler vorhanden sind
+    for(const otem of Object.keys(packageObj.rsigs)) { if(allowedRSigFields.includes(otem) === false) { console.log(otem); return false; } }
+    for(const otem of allowedRSigFields) { if(Object.keys(packageObj.rsigs).includes(otem) === false) { return false; } }
 
     // Es handelt sich um ein gültiges Paket
     return true;
