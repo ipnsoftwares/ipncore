@@ -633,9 +633,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             // Es wird geprüft ob es sich um eine Lokale Adresse handelt, wenn ja wird das Paket beantwortet
             const retrivedKeyPair = await _GET_KEYPAIR_THEN_PUBKEYH_KNWON(package.saddr);
             if(retrivedKeyPair !== null) await _rManager.enterIncommingAddressSearchProcessDataLocal(package.proc_sid, package.saddr, retrivedKeyPair, connObj);
-            else {
-
-            }
+            else await _rManager.enterIncommingAddressSearchProcessDataForward(package.proc_sid, package.saddr, connObj);
         }
         else if(package.type === 'rrr') {
 

@@ -947,7 +947,8 @@ const routingManager = () => {
         enterOutgoingLayer2Packages:_enterOutgoingLayer2Packages,
         enterIncommingLayer2Packages:_enterIncommingLayer2Packages,
         signalPackageTransferedToPKey:_signalPackageTransferedToPKey,
-        enterIncommingAddressSearchProcessDataLocal:_artemisLocalRoutingRequestRecived
+        enterIncommingAddressSearchProcessDataLocal:_artemisLocalRoutingRequestRecived,
+        enterIncommingAddressSearchProcessDataForward:_artemisLocalRoutingRequestRecived,
     };
 };
 
