@@ -1,5 +1,5 @@
 const { verifyLayerThreePackage, verifyFirstSecondLayerPackageBase, isValidateRoutingRequestOrResponsePackage, isValidateRoutingRequestPackage, isValidateRoutingResponsePackage } = require('./lpckg');
-const { get_hash_from_dict, decrypt_anonymous_package, encrypt_anonymous_package, verify_digest_sig, sign_digest, create_deterministic_keypair, convert_pkey_to_addr } = require('./crypto');
+const { get_hash_from_dict, decrypt_anonymous_package, encrypt_anonymous_package, verify_digest_sig, sign_digest, create_deterministic_keypair, convert_pkey_to_addr, double_sha3_compute } = require('./crypto');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { isNodeOnPCLaptopOrEmbeddedLinuxSystem } = require('./utils');
 const { createLocalSocket, SockTypes } = require('./socket');
@@ -74,14 +74,14 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         let temp = create_deterministic_keypair(privateSeed, `0/0/MASTER_KEY`);
         temp.dpkhash = crypto.createHash('sha256').update(crypto.createHash('sha256').update(temp.publicKey).digest()).digest();
         dprintinfo(10, ['Node Master Address ='], [colors.FgCyan, convert_pkey_to_addr(temp.publicKey)]);
-        _localPrimaryKeyPair = temp;
+        _localPrimaryKeyPair = { ...temp,  nhash:double_sha3_compute(temp.publicKey)};
 
         // Die weiteren Subkeys werden erstellt
         let cerelm = 0;
         while (cerelm != nodeSettings.key_height) {
             let determenstc = create_deterministic_keypair(privateSeed, `0/0/${cerelm}`);
             determenstc.dpkhash = crypto.createHash('sha256').update(crypto.createHash('sha256').update(determenstc.publicKey).digest()).digest();
-            _localKeyPairs.set(Buffer.from(determenstc.publicKey).toString('hex'), determenstc);
+            _localKeyPairs.set(Buffer.from(determenstc.publicKey).toString('hex'), { ...determenstc, nhash:double_sha3_compute(determenstc.publicKey) });
             cerelm += 1;
         }
     }
@@ -204,7 +204,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
     const _GET_KEYPAIR_THEN_PUBKEYH_KNWON = async (pubKeyHash) => {
         // Es wird geprüft ob es sich um den Primären Schlüssel handelt
         if(_localPrimaryKeyPair !== null) {
-            if(Buffer.from(_localPrimaryKeyPair.dpkhash).toString('hex') === pubKeyHash) return _localPrimaryKeyPair;
+            if(Buffer.compare(_localPrimaryKeyPair.nhash, pubKeyHash) === 0) return _localPrimaryKeyPair;
         }
 
         // Es werden alle Schlüsselpaar durchsucht um zu prüfen ob es einen Identischen Wert gibt
@@ -212,7 +212,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             const sockKPair = _localKeyPairs.get(otem);
 
             // Es wird geprüft ob es sich um einen String handelt
-            if(sockKPair.dpkhash.toString('hex') === pubKeyHash) return sockKPair;
+            if(Buffer.compare(sockKPair.nhash, pubKeyHash) === 0) return sockKPair;
         }
 
         // Es wurde kein Ergebniss gefunden
@@ -621,21 +621,46 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
             return;
         }
 
+        // Speichert die Zeit ab, wann das Paket empfangen wurde
+        const package_recived_data = Date.now();
+
         // Es wird geprüft ob es sich um ein Request oder ein Response Paket handelt
         if(package.type === 'rreq') {
             // Es wird geprüft ob es sich um ein gültiges Routing Request Package handelt
             if(isValidateRoutingRequestPackage(package) !== true) {
-                // Es handelt sich um ein ungültiges Paket
                 console.log('INVALID_PACKAGE', package);
                 return;
             }
 
+            // Die Prozess Id wird erstellt
+            const comparedData = Buffer.from([ ...package.saddr, ...package.phantom_key ]);
+            const hashedData = double_sha3_compute(comparedData);
+
+            // Es wird geprüft ob die Session Signatur korrekt ist
+            if(verify_digest_sig(hashedData, package.rsigs.proc, package.proc_sid) !== true) {
+                console.log('INVALID_PACKAGE', package);
+                return;
+            }
+
+            // Das Objekt wird Dupliziert um die PhantomKey Signtur zu überprüfen
+            const clonedObj = { ...package }; delete clonedObj.rsigs; delete clonedObj.ttl; delete clonedObj.sig; delete clonedObj.version;
+
+            // Es wird geprüft ob die Phantom Signatur korrekt ist
+            if(verify_digest_sig( get_hash_from_dict(clonedObj), package.rsigs.phantom, package.phantom_key) !== true) {
+                console.log('INVALID_PACKAGE', clonedObj, package);
+                return;
+            }
+
+            // Die Ablaufzeit wird angepasst
+            const modifyed_ttl = package.ttl - connObj.getPingTime();
+
             // Es wird geprüft ob es sich um eine Lokale Adresse handelt, wenn ja wird das Paket beantwortet
             const retrivedKeyPair = await _GET_KEYPAIR_THEN_PUBKEYH_KNWON(package.saddr);
-            if(retrivedKeyPair !== null) await _rManager.enterIncommingAddressSearchProcessDataLocal(package.proc_sid, package.saddr, retrivedKeyPair, connObj);
-            else await _rManager.enterIncommingAddressSearchProcessDataForward(package.proc_sid, package.saddr, connObj);
+            if(retrivedKeyPair !== null) await _rManager.enterIncommingAddressSearchRequestProcessDataLocal(package.proc_sid, package.rsigs.proc, package.saddr, retrivedKeyPair, connObj);
+            else await _rManager.enterIncommingAddressSearchRequestProcessDataForward(package.proc_sid, package.rsigs.proc, package.phantom_key, package.rsigs.phantom, package.saddr, modifyed_ttl, package.start_ttl, package.options, package_recived_data, connObj);
         }
         else if(package.type === 'rrr') {
+            // Die Antwort wird an den Routing Manager übergeben
 
         }
         else {

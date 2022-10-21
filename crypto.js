@@ -3,9 +3,10 @@ const { sha256 } = require('@noble/hashes/sha256');
 const { binary_to_base58 } = require('base58-js');
 const { hkdf } = require('@noble/hashes/hkdf');
 const _sodium = require('libsodium-wrappers');
+const { SHA3, Keccak } = require('sha3');
+const RIPEMD160 = require('ripemd160')
 const { bech32 } = require('bech32');
 const crypto = require('crypto');
-const { SHA3 } = require('sha3');
 const cbor = require('cbor');
 
 
@@ -30,6 +31,16 @@ function double_sha3_compute(baseValue) {
 
     // Der Hash wird zurückgegeben
     return finalHash.digest();
+};
+
+// Gibt einen Fingerabdruck aus
+function get_digest_fingerprint(digest_value) {
+    // Es wird ein Keccak Hash erstellt
+    const keccak_hash = new Keccak(256);
+    keccak_hash.update(digest_value);
+
+    // Es wird RIPEMD160 Hash erzeugt
+    return new RIPEMD160().update(keccak_hash.digest()).digest('hex')
 };
 
 // Erstellt einen Hash aus einem Dict
@@ -280,6 +291,7 @@ module.exports = {
     decrypt_anonymous_package:decrypt_anonymous_package,
     create_random_session_id:create_random_session_id,
     generate_ed25519_keypair:generate_ed25519_keypair,
+    get_digest_fingerprint:get_digest_fingerprint,
     compute_shared_secret:compute_shared_secret,
     convert_pkey_to_addr:convert_pkey_to_addr,
     convert_addr_to_pkey:convert_addr_to_pkey,

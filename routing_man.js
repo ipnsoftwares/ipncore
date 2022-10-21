@@ -615,7 +615,7 @@ const routingManager = () => {
     };
 
     // Wird verwendet um eine neue Adresse im Netzwerk zu suchen (Artemis Protokoll)
-    const _artemisProNetworkWideAddressSearch = async (searchedNetworkAddress, callback) => {
+    const _artemisProNetworkWideAddressSearch = async (searchedNetworkAddress, ignoreConnections,  callback) => {
         console.log('Search', searchedNetworkAddress, 'in global network');
 
         // Es wird geprüft ob es sich um eine bekannte Route handelt
@@ -658,6 +658,10 @@ const routingManager = () => {
             // Aus dem DH Schlüssel wird ein neues Schlüsselpaar abgeleitet
             const phantomKeyPair = create_deterministic_keypair(result, "0/0/0");
 
+            // Es wird eine Prozess Signatur erzeugt
+            const comparedData = Buffer.from([ ...reservedHash, ...Buffer.from(phantomKeyPair.publicKey) ]);
+            const procKeySig = sign_digest(double_sha3_compute(comparedData), tempKPair.privateKey);
+
             // Die 8 Nodes mit denen am längsten eine Verbindung besteht werden herausgesucht
             _GET_BASE_X_CONNECTIONS().then(async (totalFoundPeers) => {
                 // Es wird geprüft ob eine Verbindung abgerufen werden konnte
@@ -695,8 +699,7 @@ const routingManager = () => {
                         // Es wird ein Hash aus dem Paket erzeugt
                         const packageHash = get_hash_from_dict(preRequestPackage);
 
-                        // Der Pakethash wird mit dem Prozess Schlüssel sowie mit dem Phantom Schlüssel signiert
-                        const procKeySig = sign_digest(packageHash, tempKPair.privateKey);
+                        // Das Paket wird mit dem PhantomKey Signiert
                         const phantomKeySig = sign_digest(packageHash, phantomKeyPair.privateKey);
 
                         // Das Finale Paket wird gebaut
@@ -709,7 +712,7 @@ const routingManager = () => {
                         }
 
                         // Der Peer wird dem Prozess hinzugefügt
-                        if(openRoutingRequestProcesses.setRequestPeerToProcess(Buffer.from(tempKPair.publicKey).toString('hex'), firstUseableConnection.sessionId()) !== true) {
+                        if(openRoutingRequestProcesses.setRequestPeerToProcess(Buffer.from(tempKPair.publicKey).toString('hex'), firstUseableConnection.sessionId(), 'send') !== true) {
                             console.log('ABORTED_PROCESS_CLOSED');
                             return;
                         }
@@ -748,9 +751,148 @@ const routingManager = () => {
         });
     };
 
-    // Wird verwendet um eintreffende Routing Request Packages für den Lokalen Node entgegen zu nehemen
-    const _artemisLocalRoutingRequestRecived = async(sessionIdPubK, searchedAddressHash, localKeyPair, recvConnObj) => {
+    // Wird verwendet um eintreffende Routing Request Packages für den Lokalen Node entgegen zu beantworten
+    const _artemisLocalRoutingRequestRecived = async(sessionIdPubK, sessionSig, searchedAddressHash, localKeyPair, recvConnObj) => {
+        // Wird verwendet um das Antwortpaket abzusenden
+        const __send_response = async () => {
 
+        };
+
+        // Es wird ein neuer Routing vorgang hinzugefügt sofern dieser noch nicht hinzugefügt wurde
+        const new_routing_req_proc = await openRoutingRequestProcesses.setUpProcess(sessionIdPubK.toString('hex'), searchedAddressHash.toString('hex'), null, null);
+        if(new_routing_req_proc === true) {
+            // Die Sitzung wird hinzugefügt
+            const new_session_add_id = openRoutingRequestProcesses.setRequestPeerToProcess(sessionIdPubK.toString('hex'), recvConnObj.sessionId(), 'recived');
+            if(new_session_add_id !== true) {
+                console.log('INVALID_DATA_B');
+                return;
+            }
+
+            // Das Antwortpaket wird gebaut
+        }
+        else {
+            // Es wird geprüft, die wieviele Anfrag dass ist
+            if(openRoutingRequestProcesses.getAllInputSessionForProcess().length < 2) {
+                // Es wird geprüft ob diese Anfrage bereits beantwortet wurde
+                
+            }
+            else {
+                // Die Verbindung wird Ignoriert
+                console.log('IGNORE_ROUTING_PACKAGE');
+            }
+        }
+    };
+
+    // Wird verwendet um eintreffende Routing Request Packages für eine Unbeaknnte Adresse zu suchen
+    const _artemisAddressAnotherRoutingRequestRecived = async(sessionIdPubK, sessionSig, phantomPubKey, phantomSig, searchedAddressHash, ttl, startTime, options, reciveTime, recvConnObj) => {
+        // Es wird geprüft ob es sich um einen bekannten Request Vorgang handelt
+        const btro = await openRoutingRequestProcesses.hasOpenProcess(sessionIdPubK.toString('hex'));
+        if(btro === true) {
+            if(openRoutingRequestProcesses.setRequestPeerToProcess(sessionIdPubK.toString('hex'), recvConnObj.sessionId(), 'recived') !== true) {
+                console.log('INVALID_DATA_B');
+                return;
+            }
+        }
+        else {
+            // Es wird ein neuer Routing vorgang gestartet
+            const new_routing_req_proc = await openRoutingRequestProcesses.setUpProcess(sessionIdPubK.toString('hex'), searchedAddressHash.toString('hex'), null, null);
+            if(new_routing_req_proc !== true) {
+                console.log('INVALID_DATA_A');
+                return;
+            }
+
+            // Die Sitzung wird hinzugefügt
+            const new_session_add_id = openRoutingRequestProcesses.setRequestPeerToProcess(sessionIdPubK.toString('hex'), recvConnObj.sessionId(), 'recived');
+            if(new_session_add_id !== true) {
+                console.log('INVALID_DATA_B');
+                return;
+            }
+
+            // Es werden alle Sitzungen abgerufen von denen ein Paket empfangen wurde
+            const ftch_sessions = openRoutingRequestProcesses.getAllInputSessionForProcess(sessionIdPubK.toString('hex'));
+            if(ftch_sessions === false) {
+                console.log('INTERNAL_ERROR_PROCESS_ABORTED');
+                return;
+            }
+
+            // Die 8 Nodes mit denen am längsten eine Verbindung besteht werden herausgesucht
+            const totalFoundPeers = await _GET_BASE_X_CONNECTIONS(ftch_sessions);
+
+            // Es wird geprüft ob eine Verbindung abgerufen werden konnte
+            if(totalFoundPeers.length === 0) { return; }
+
+            // Speichert ab, an wieivle Peers das Paket berits erfolgreich gesendet wurde
+            let firstPackageWasSendTime = null, failedSend = 0;
+
+            // Diese Funktion wird verwendet um das eigentliche Paket zu bauen und abzusenden
+            const _transpckg = async () => {
+                // Es wird geprüft ob die Verbindug vorhanden ist
+                if(totalFoundPeers.length === 0) return;
+
+                // Die erste Verbindung wird aus der Liste abgerufen
+                const firstUseableConnection = totalFoundPeers.pop();
+                console.log('FORWARD_ROUTING_REQUEST', sessionIdPubK.toString('hex'), firstUseableConnection.sessionId());
+
+                // Die Ablaufzeit wird ermittelt
+                const t_stamp = ttl - (Date.now() - reciveTime);
+
+                // Das Paket wird gebaut
+                const finalPackage = {
+                    type:'rreq',
+                    start_ttl:startTime,
+                    saddr:searchedAddressHash,
+                    options:options,
+                    proc_sid:sessionIdPubK,
+                    phantom_key:phantomPubKey,
+                    rsigs:{
+                        phantom:phantomSig,
+                        proc:sessionSig 
+                    },
+                    ttl:t_stamp
+                };
+
+                // Es wird geprüft ob eine Verbindung mit dem ausgewhälten Peer besteht
+                if(firstUseableConnection.isConnected() !== true) {
+                    console.log('IGNORED_CONNECTION_IS_NOT_CONNECTE');
+                    return;
+                }
+
+                // Der Peer wird dem Prozess hinzugefügt
+                if(openRoutingRequestProcesses.setRequestPeerToProcess(sessionIdPubK.toString('hex'), firstUseableConnection.sessionId(), 'send') !== true) {
+                    console.log('ABORTED_PROCESS_CLOSED');
+                    return;
+                }
+
+                // Das Paket wird an die Gegenseite gesendet
+                firstUseableConnection.sendRawPackage(finalPackage, (result) => {
+                    // Es wird geprüft ob das Paket erfolgreich versendet wurde
+                    if(result !== true) {
+                        // Der Peer wird entfernt
+                        openRoutingRequestProcesses.deleteRequestPeerToProcess(sessionIdPubK.toString('hex'), firstUseableConnection.sessionId());
+
+                        // Es wird ein Fehler heraufgezählt
+                        failedSend += 1; 
+
+                        // Es wird geoprüft ob soviele Vorgänge fehlgeschlagen sind wie abgesendet werden sollten
+                        if(failedSend === totalFoundPeers.length) {
+                            console.log('INV');
+                        }
+
+                        // Der Vorgang wird beendet
+                        return; 
+                    }
+
+                    // Es wird geprüft ob es sich um das erste Paket handelt welches abgesendet wurde
+                    if(firstPackageWasSendTime === null) firstPackageWasSendTime = Date.now();
+                });
+
+                // Das nächste Paket wird versendet
+                await _transpckg();
+            };
+
+            // Das Senden des Paketes wird gestartet
+            await _transpckg();
+        }
     };
 
     // Gibt die Schnellste SessionID für diese Verbindung an, sollte keine Verbindung vorhanden sein wird eine leere liste zurück gegegeben
@@ -906,12 +1048,13 @@ const routingManager = () => {
     };
 
     // Gibt X Nodes aus mit denen bereits eine Verbindung über längere Zeit besteht
-    const _GET_BASE_X_CONNECTIONS = async (useForSearchRoute) => {
+    const _GET_BASE_X_CONNECTIONS = async (ignoreConnections=[]) => {
         // Es werden alle Verbindungen herausgefilter
         let readedConnections = [];
         for(const otem of sessionEndPoints.keys()) { 
             const tvalue = sessionEndPoints.get(otem)
             if(tvalue === undefined) continue;
+            if(ignoreConnections.includes(tvalue.sessionId()) === true) continue;
             readedConnections.push(tvalue); 
         }
 
@@ -947,8 +1090,8 @@ const routingManager = () => {
         enterOutgoingLayer2Packages:_enterOutgoingLayer2Packages,
         enterIncommingLayer2Packages:_enterIncommingLayer2Packages,
         signalPackageTransferedToPKey:_signalPackageTransferedToPKey,
-        enterIncommingAddressSearchProcessDataLocal:_artemisLocalRoutingRequestRecived,
-        enterIncommingAddressSearchProcessDataForward:_artemisLocalRoutingRequestRecived,
+        enterIncommingAddressSearchRequestProcessDataLocal:_artemisLocalRoutingRequestRecived,
+        enterIncommingAddressSearchRequestProcessDataForward:_artemisAddressAnotherRoutingRequestRecived,
     };
 };
 

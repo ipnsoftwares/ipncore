@@ -1,7 +1,8 @@
 // Wird als Map für Rouing vorgänge verwedndet
 class ProcessRoutingMap {
     constructor() {
-        this.session_process_ids = new Map();
+        this.session_process_recive_ids = new Map();
+        this.session_process_send_ids = new Map();
         this.session_functions = new Map();
         this.session_pkey_link = new Map();
     };
@@ -44,34 +45,81 @@ class ProcessRoutingMap {
     // Signalisiert dass eine Node Verbindung getretnnt wurde
     async removePeerSession(requestSendPeerSessionId) {
         // Es werden alle Sitzungen durchgearbeitet
-        for(const otem of this.session_process_ids.keys()) {
-            let preoc = this.session_process_ids.get(otem);
+        for(const otem of this.session_process_send_ids.keys()) {
+            let preoc = this.session_process_send_ids.get(otem);
             if(preoc === undefined) continue;
             console.log(preoc)
         }
     };
 
-    // Fügt einen Peer hinzu von welchem ein Request Paket gesendet wurde
-    setRequestPeerToProcess(processId, requestSendPeerSessionId) {
+    // Es werden alle Sitzungen eines Prozesses abgerufen von welchen ein Paket empfangen wurde
+    getAllInputSessionForProcess(processId) {
         // Es wird geprüft ob der Prozess vorhanden ist
         const atrovid = this.session_functions.get(processId);
         if(atrovid === undefined) return false;
 
-        // Es wird geprüft ob die Sitzung diesem Prozess zugeordnet wurde
-        const btrovid = this.session_process_ids.get(requestSendPeerSessionId);
-        if(btrovid !== undefined) {
-            // Es wird geprüft ob die Sitzung dem Process beretis zugeordnet wurde
-            if(btrovid.includes(processId) == true) return false;
+        // Es werden alle Verbindungen herausgefiltert
+        const filtered_connections = [];
+        for(const otem of this.session_process_recive_ids.keys()) {
+            // Die Daten werden abgerufen
+            const item = this.session_process_recive_ids.get(otem);
+            if(item === undefined) continue;
 
-            // Der Vorgang wird hinzugefügt
-            btrovid.push(processId)
-            this.session_process_ids.set(btrovid);
-            console.log('OUTPUT_TO_PROC_ADD #1', processId, requestSendPeerSessionId);
+            // Es wird geprüft ob die SessionId vorhanden ist
+            if(item.includes(processId) === true) {
+                if(filtered_connections.includes(otem) === false) filtered_connections.push(otem);
+            }
         }
-        else {
-            // Der Vorgang wird vollständig neu Hinzugefügt
-            this.session_process_ids.set(requestSendPeerSessionId, [ processId ]);
-            console.log('OUTPUT_TO_PROC_ADD #2', processId, requestSendPeerSessionId);
+
+        // Die Daten werden zurückgegeben
+        return filtered_connections;
+    };
+
+    // Fügt einen Peer hinzu von welchem ein Request Paket gesendet wurde
+    setRequestPeerToProcess(processId, requestSendPeerSessionId, sendOrRecived='send') {
+        // Es wird geprüft ob der Prozess vorhanden ist
+        const atrovid = this.session_functions.get(processId);
+        if(atrovid === undefined) return false;
+
+        // Es wird geprüft ob es sich um einen Sendevorgang handelt
+        if(sendOrRecived === 'send') {
+            // Es wird geprüft ob die Sitzung diesem Prozess zugeordnet wurde
+            const btrovid = this.session_process_send_ids.get(requestSendPeerSessionId);
+            if(btrovid !== undefined) {
+                // Es wird geprüft ob die Sitzung dem Process beretis zugeordnet wurde
+                if(btrovid.includes(processId) == true) return false;
+
+                // Der Vorgang wird hinzugefügt
+                btrovid.push(processId)
+                this.session_process_send_ids.set(btrovid);
+                console.log('OUTPUT_TO_PROC_ADD #1', processId, requestSendPeerSessionId);
+            }
+            else {
+                // Der Vorgang wird vollständig neu Hinzugefügt
+                this.session_process_send_ids.set(requestSendPeerSessionId, [ processId ]);
+                console.log('OUTPUT_TO_PROC_ADD #2', processId, requestSendPeerSessionId);
+            }
+        }
+        else{
+            // Es wird geprüft ob es sich um einen Sendevorgang handelt
+            if(sendOrRecived !== 'recived') { return false; }
+
+            // Es wird geprüft ob die Sitzung diesem Prozess zugeordnet wurde
+            const btrovid = this.session_process_recive_ids.get(requestSendPeerSessionId);
+            if(btrovid !== undefined) {
+                // Es wird geprüft ob die Sitzung dem Process beretis zugeordnet wurde
+                if(btrovid.includes(processId) == true) return false;
+
+                // Der Vorgang wird hinzugefügt
+                btrovid.push(processId)
+                this.session_process_recive_ids.set(btrovid);
+                console.log('INPUT_TO_PROC_ADD #1', processId, requestSendPeerSessionId);
+            }
+            else {
+                // Der Vorgang wird vollständig neu Hinzugefügt
+                this.session_process_recive_ids.set(requestSendPeerSessionId, [ processId ]);
+                console.log('INPUT_TO_PROC_ADD #2', processId, requestSendPeerSessionId);
+            }
         }
 
         // Der Vorgang wurde erfolgreich druchgeführt

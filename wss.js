@@ -182,6 +182,10 @@ const wsConnection = (socketKeyPair, localeNodeObject, wsConnObject, sourceAddre
         sessionId:() => _currentSessionId,
         close:() => wsConnObject.close(),
         peerVersion:() => _peerVersion,
+        getFingerpring:() => {
+            if(_sessionSharedSecret !== null) return get_digest_fingerprint(_sessionSharedSecret);
+            else return null;
+        },
         isConnected:() => _isConnected,
         isIncomming:() => incomming,
         rxBytes:() => _recivedPackageBytes,
