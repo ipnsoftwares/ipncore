@@ -3,6 +3,7 @@ class ProcessRoutingMap {
     constructor() {
         this.session_process_recive_ids = new Map();
         this.session_process_send_ids = new Map();
+        this.process_setup_timestamp = new Map();
         this.session_functions = new Map();
         this.session_pkey_link = new Map();
     };
@@ -22,6 +23,9 @@ class ProcessRoutingMap {
 
         // Der Prozess wird dem Öffentlichen Schlüssel zugeordnet
         this.session_pkey_link.set(publicKey, processId);
+
+        // Die Aktuelle Zeit wird abgespeichert
+        this.process_setup_timestamp.set(processId, Date.now());
 
         // Der Vorgang wurde erfolgreich durchgeführt
         console.log('SET_UP_PROCESS #1', processId);

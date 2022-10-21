@@ -752,11 +752,14 @@ const routingManager = () => {
     };
 
     // Wird verwendet um eintreffende Routing Request Packages für den Lokalen Node entgegen zu beantworten
-    const _artemisLocalRoutingRequestRecived = async(sessionIdPubK, sessionSig, searchedAddressHash, localKeyPair, recvConnObj) => {
+    const _artemisLocalRoutingRequestRecived = async(sessionIdPubK, sessionSig, searchedAddressHash, localKeyPair, plainOptions, recivedDate, phantomKey, recvConnObj) => {
         // Wird verwendet um das Antwortpaket abzusenden
         const __send_response = async () => {
 
         };
+
+        // Die Optionen werden ausgelesen
+        console.log(plainOptions);
 
         // Es wird ein neuer Routing vorgang hinzugefügt sofern dieser noch nicht hinzugefügt wurde
         const new_routing_req_proc = await openRoutingRequestProcesses.setUpProcess(sessionIdPubK.toString('hex'), searchedAddressHash.toString('hex'), null, null);
@@ -768,16 +771,30 @@ const routingManager = () => {
                 return;
             }
 
-            // Das Antwortpaket wird gebaut
+            // Das Antwortpaket wird gesendet
+            await __send_response();
         }
         else {
             // Es wird geprüft, die wieviele Anfrag dass ist
-            if(openRoutingRequestProcesses.getAllInputSessionForProcess().length < 2) {
+            const recived_connections = openRoutingRequestProcesses.getAllInputSessionForProcess();
+            if(recived_connections.length < 2) {
                 // Es wird geprüft ob diese Anfrage bereits beantwortet wurde
-                
+                if(recived_connections.includes(recvConnObj.sessionId()) === true) {
+                    console.log('PACKAGE_DROPED');
+                    return;
+                }
+
+                // Die Sitzung wird hinzugefügt
+                const new_session_add_id = openRoutingRequestProcesses.setRequestPeerToProcess(sessionIdPubK.toString('hex'), recvConnObj.sessionId(), 'recived');
+                if(new_session_add_id !== true) {
+                    console.log('INVALID_DATA_B');
+                    return;
+                }
+
+                // Die Anfrage wird beantwortet
+                await __send_response();
             }
             else {
-                // Die Verbindung wird Ignoriert
                 console.log('IGNORE_ROUTING_PACKAGE');
             }
         }

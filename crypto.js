@@ -58,6 +58,10 @@ function get_hash_from_dict(jsonDict) {
 
 // Erstellt eine Zufällige SessionID ab
 function create_random_session_id() {
+    // Es wird ein Zufälliger Wert erzeugt
+    
+
+    // Der wert wird zurückgegeben
     return binary_to_base58(crypto.randomBytes(14)).toUpperCase();
 };
 
@@ -139,7 +143,7 @@ function compute_shared_secret(privKey, pubKey, callback) {
     const computedDhSecrtKey = _crypto_sodium_modul.crypto_scalarmult(curve25519PrivateKey, curve25519PublicKey);
 
     // Der Schlüssel wird als Buffer zurückgegeben
-    callback(null, Buffer.from(computedDhSecrtKey));
+    callback(null, new Keccak(256).update(Buffer.from(computedDhSecrtKey)).digest());
 };
 
 // Verschlüsselt ein Paket / Frame Asymmetrisch

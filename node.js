@@ -1,5 +1,5 @@
+const { get_hash_from_dict, decrypt_anonymous_package, encrypt_anonymous_package, verify_digest_sig, sign_digest, create_deterministic_keypair, convert_pkey_to_addr, double_sha3_compute, compute_shared_secret } = require('./crypto');
 const { verifyLayerThreePackage, verifyFirstSecondLayerPackageBase, isValidateRoutingRequestOrResponsePackage, isValidateRoutingRequestPackage, isValidateRoutingResponsePackage } = require('./lpckg');
-const { get_hash_from_dict, decrypt_anonymous_package, encrypt_anonymous_package, verify_digest_sig, sign_digest, create_deterministic_keypair, convert_pkey_to_addr, double_sha3_compute } = require('./crypto');
 const { dprintok, dprinterror, dprintinfo, colors } = require('./debug');
 const { isNodeOnPCLaptopOrEmbeddedLinuxSystem } = require('./utils');
 const { createLocalSocket, SockTypes } = require('./socket');
@@ -622,7 +622,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
         }
 
         // Speichert die Zeit ab, wann das Paket empfangen wurde
-        const package_recived_data = Date.now();
+        const package_recived_date = Date.now();
 
         // Es wird geprüft ob es sich um ein Request oder ein Response Paket handelt
         if(package.type === 'rreq') {
@@ -656,8 +656,41 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
 
             // Es wird geprüft ob es sich um eine Lokale Adresse handelt, wenn ja wird das Paket beantwortet
             const retrivedKeyPair = await _GET_KEYPAIR_THEN_PUBKEYH_KNWON(package.saddr);
-            if(retrivedKeyPair !== null) await _rManager.enterIncommingAddressSearchRequestProcessDataLocal(package.proc_sid, package.rsigs.proc, package.saddr, retrivedKeyPair, connObj);
-            else await _rManager.enterIncommingAddressSearchRequestProcessDataForward(package.proc_sid, package.rsigs.proc, package.phantom_key, package.rsigs.phantom, package.saddr, modifyed_ttl, package.start_ttl, package.options, package_recived_data, connObj);
+            if(retrivedKeyPair !== null) {
+                // Es wird versucht die Optionen zu Entschlüsseln
+                decrypt_anonymous_package(package.options, retrivedKeyPair.privateKey, retrivedKeyPair.publicKey, (decryp_error, decrypted_result) => {
+                    // Es wird geprüft ob ein Fehler aufgetreten ist
+                    if(decryp_error !== null) {
+                        console.log('INVALID_ROUTING_PACKGE_OPTIONS_INVALID');
+                        return;
+                    }
+
+                    // Es wird versucht den PhantomKey nachzubilden
+                    compute_shared_secret(retrivedKeyPair.privateKey, package.proc_sid, (retrived_error, shared_secret) => {
+                        // Es wird geprüft ob ein Fehler aufgetreten ist
+                        if(retrived_error !== null) {
+                            console.log('RETRIVED_PCKG');
+                            return;
+                        }
+
+                        // Aus dem DH Schlüssel wird ein neues Schlüsselpaar abgeleitet
+                        const phantomKeyPair = create_deterministic_keypair(shared_secret, "0/0/0");
+
+                        // Es wird geprüft ob die Schlüssel Identisch sind
+                        if(Buffer.compare(Buffer.from(phantomKeyPair.publicKey), Buffer.from(package.phantom_key)) !== 0) {
+                            console.log('INVALID_RETRO');
+                            return;
+                        }
+
+                        // Die Anfrage wird an den Routing Manager übergeben um den Vorgang zu beantworten
+                        _rManager.enterIncommingAddressSearchRequestProcessDataLocal(package.proc_sid, package.rsigs.proc, package.saddr, retrivedKeyPair, decrypted_result, package_recived_date, phantomKeyPair, connObj).catch((e) => { });
+                    });
+                });
+            }
+            else {
+                // Das Paket wird an den Routing Manager übergeben
+                await _rManager.enterIncommingAddressSearchRequestProcessDataForward(package.proc_sid, package.rsigs.proc, package.phantom_key, package.rsigs.phantom, package.saddr, modifyed_ttl, package.start_ttl, package.options, package_recived_date, connObj);
+            }
         }
         else if(package.type === 'rrr') {
             // Die Antwort wird an den Routing Manager übergeben
