@@ -683,7 +683,7 @@ const Node = (sodium, localNodeFunctions=['boot_node'], privateSeed=null, nodeSe
                         }
 
                         // Die Anfrage wird an den Routing Manager übergeben um den Vorgang zu beantworten
-                        _rManager.enterIncommingAddressSearchRequestProcessDataLocal(package.proc_sid, package.rsigs.proc, package.saddr, retrivedKeyPair, decrypted_result, package_recived_date, phantomKeyPair, connObj).catch((e) => { });
+                        _rManager.enterIncommingAddressSearchRequestProcessDataLocal(package.proc_sid, package.rsigs.proc, package.saddr, retrivedKeyPair, decrypted_result, package_recived_date, phantomKeyPair, package.start_ttl, connObj).catch((e) => { });
                     });
                 });
             }

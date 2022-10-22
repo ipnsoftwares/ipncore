@@ -52,7 +52,6 @@ class ProcessRoutingMap {
         for(const otem of this.session_process_send_ids.keys()) {
             let preoc = this.session_process_send_ids.get(otem);
             if(preoc === undefined) continue;
-            console.log(preoc)
         }
     };
 

@@ -752,15 +752,57 @@ const routingManager = () => {
     };
 
     // Wird verwendet um eintreffende Routing Request Packages für den Lokalen Node entgegen zu beantworten
-    const _artemisLocalRoutingRequestRecived = async(sessionIdPubK, sessionSig, searchedAddressHash, localKeyPair, plainOptions, recivedDate, phantomKey, recvConnObj) => {
+    const _artemisLocalRoutingRequestRecived = async(sessionIdPubK, sessionSig, searchedAddressHash, localKeyPair, plainOptions, recivedDate, phantomKeyPair, start_ttl, recvConnObj) => {
         // Wird verwendet um das Antwortpaket abzusenden
         const __response = async () => {
             // Es wird geprüft ob bereits eine Antwort an die Verbindung gesendet wurde, wenn ja wird der Vorgang abgebrochen
             const sendedSessions = openRoutingRequestProcesses.getAllOutputSessionForProcess(sessionIdPubK.toString('hex'));
-            if(sessionEndPoints.includes(recvConnObj.sessionId()) === true) {
-
+            if(sendedSessions.includes(recvConnObj.sessionId()) === true) {
+                console.log('ABORTED_ALWAYS_SENDED');
+                return;
             }
 
+            // Die Sitzung wird hinzugefügt
+            const new_session_add_id = openRoutingRequestProcesses.setRequestPeerToProcess(sessionIdPubK.toString('hex'), recvConnObj.sessionId(), 'send');
+            if(new_session_add_id !== true) {
+                console.log('INVALID_DATA_B');
+                return;
+            }
+
+            // Die Optionen werden in Bytes umgewandelt
+            const bytedOptions = cbor.encode({ wish_ep:"ws+tor", timeout:12000 });
+
+            // Die Optionen werden verschlüsselt
+            const encrypted_options = await new Promise((resolve, reject) => {
+                encrypt_anonymous(bytedOptions, sessionIdPubK, (error, encrypted) => {
+                    if(error !== null) reject(error); else resolve(encrypted)
+                });
+            });
+
+            // Es wird ein Hash aus dem Process-Public-Key + Der Signatur der Session + Die Adresse des Empfängers
+            const combinated_dual_key = double_sha3_compute([...sessionIdPubK, ...sessionSig, Buffer.from(localKeyPair.publicKey)]);
+
+            // Der Hash wird Signiert
+            const signated_found_address_hash = await new Promise((resolve, reject) => {
+                const resolved = sign_digest(combinated_dual_key, localKeyPair.privateKey);
+                resolve(resolved);
+            });
+
+            // Das Paket wird gebaut
+            const preRequestPackage = {
+                type:'rrr',
+                start_ttl:start_ttl,
+                proc_sid:sessionIdPubK,
+                phantom_key:Buffer.from(phantomKeyPair.publicKey),
+                faddr:Buffer.from(localKeyPair.publicKey),
+                options:encrypted_options,
+                rsigs:{
+                    proc:sessionSig,
+                }
+            };
+
+            // Das Paket wird an den Peer zurückgesendet von dem es Empfangen wurde
+            console.log(preRequestPackage)
         };
 
         // Es wird ein neuer Routing vorgang hinzugefügt sofern dieser noch nicht hinzugefügt wurde
