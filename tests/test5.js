@@ -1,3 +1,4 @@
+const { createSystemSharedMemoryAPI } = require('../ipclib');
 const { init_crypto } = require('../src/crypto');
 const _sodium = require('libsodium-wrappers');
 const { Node } = require('../src/node');
@@ -5,29 +6,30 @@ const crypto = require('crypto');
 
 
 
+
+
 (async() => {
     await _sodium.ready;
     const sodium = _sodium;
 
+    // Die Krypto Funktionen werden geladen
     init_crypto(() => {
         // Der Testseed wird erzeugt
-        const plainSeed = crypto.createHash('sha256').update('key1').digest();
+        const plainSeed = crypto.createHash('sha256').update(Buffer.from('key5')).digest();
 
         // Das Sodium Schlüsselpaar wird aus dem Seed erstellt
-        var k = sodium.crypto_sign_seed_keypair(plainSeed);
+        const k = sodium.crypto_sign_seed_keypair(plainSeed);
 
         // Die Einstellungen werden erzeugt
         const configs = { key_height:1 };
 
-        var k = sodium.crypto_sign_seed_keypair(plainSeed);
-
-        // Der Node wird erzeugt
+        // Der Node wird gestartet
         Node(sodium, [], plainSeed, configs, (node) => {
+            // Die Lokale Adresse wird angezeigt
             console.log(Buffer.from(k.publicKey).toString('hex'))
-            node.addPeerClientConnection('ws://127.0.0.1:8081')
-            node.addPeerClientConnection('ws://127.0.0.1:8089')
-            node.addNewWSServer(8080);
+
+            // Es wird eine neue Server Instanz gestartet
+            node.addNewWSServer(8089);
         });
     });
 })();
-

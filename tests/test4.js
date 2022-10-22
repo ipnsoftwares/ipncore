@@ -1,7 +1,7 @@
 const { createSystemSharedMemoryAPI } = require('../ipclib');
 const _sodium = require('libsodium-wrappers');
-const { init_crypto } = require('../crypto');
-const { Node } = require('../node');
+const { init_crypto } = require('../src/crypto');
+const { Node } = require('../src/node');
 const crypto = require('crypto');
 
 

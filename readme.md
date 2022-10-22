@@ -1,8 +1,5 @@
 # 🌍 **Interplanetary Network (IPN) -- Milestone 2** 👽
 
-### ⚠️No guarantee, no liability, the project is still under construction.⚠️
-
-
 [![made-with-javascript](https://img.shields.io/badge/Made%20with-JavaScript-1f425f.svg)](https://www.javascript.com)
 [![GitHub branches](https://badgen.net/github/branches/Naereen/Strapdown.js)](https://github.com/ipnsoftwares/ipncore)
 [![GitHub commits](https://badgen.net/github/commits/Naereen/Strapdown.js)](https://github.com/ipnsoftwares/ipncorecommit/)

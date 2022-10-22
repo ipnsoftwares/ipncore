@@ -1,6 +1,6 @@
 const _sodium = require('libsodium-wrappers');
-const { init_crypto } = require('../crypto');
-const { Node } = require('../node');
+const { init_crypto } = require('../src/crypto');
+const { Node } = require('../src/node');
 const crypto = require('crypto');
 
 
@@ -21,14 +21,15 @@ const crypto = require('crypto');
         Node(sodium, [], plainSeed, configs, (node) => {
             node.addNewWSServer(8081);
 
-            // Es wird ein Testsocket erstellt
-            const testSocket = node.createNewLocalSocket(crypto.createHash('sha256').update('d').digest('hex'), (error, sockObj) => {
-                sockObj.onRecived((data, source, sport) => {
-                    sockObj.write("hallo welt zurück", source, sport, (r) => {
+            // Die Verbindung mit dem Server werden hergestellt
+            node.addPeerClientConnection('ws://45.10.24.3:8089')
 
-                    });
+            // Es wird ein Testsocket erstellt
+            /*const testSocket = node.createNewLocalSocket(crypto.createHash('sha256').update('d').digest('hex'), (error, sockObj) => {
+                sockObj.onRecived((data, source, sport) => {
+                    sockObj.write("hallo welt zurück", source, sport, (r) => {});
                 });
-            });
+            });*/
         });
     });
 })();

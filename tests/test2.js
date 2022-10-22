@@ -1,9 +1,7 @@
-const { init_crypto, convert_addr_to_pkey } = require('../crypto');
+const { init_crypto, convert_addr_to_pkey } = require('../src/crypto');
 const _sodium = require('libsodium-wrappers');
-const { Node } = require('../node');
-const figlet = require('figlet');
+const { Node } = require('../src/node');
 const crypto = require('crypto');
-
 
 
 (async() => {
@@ -42,14 +40,14 @@ const crypto = require('crypto');
 
                         const sock = crypto.createHash('sha256').update('d').digest('hex');
                         console.log('SOCK_CREATION');
-                        const testSocket = noder.createNewLocalSocket(sock, (error, sockObj) => {
+                        /*const testSocket = noder.createNewLocalSocket(sock, (error, sockObj) => {
                             sockObj.onRecived((data, source, sport) => {
                                 console.log(data, 'from:', source, sport);
                             });
 
                             sockObj.write('hallo welt', destpubk, sock, (r) => {
                             });
-                        });
+                        });*/
                     }, 2);
                 }, 2000);
             });
